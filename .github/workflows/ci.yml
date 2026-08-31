@@ -1,0 +1,59 @@
+name: CI Build & Smoke Test
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+    workflow_dispatch:
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    build-and-test:
+        name: Build & Smoke Test (${{ matrix.platform }})
+        runs-on: windows-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                platform: [x64, Win32]
+                configuration: [Release]
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: microsoft/setup-msbuild@v2
+
+            - name: Build OntyTask
+              run: msbuild OntyTask.vcxproj /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }} /verbosity:minimal
+
+            - name: Smoke Test
+              shell: powershell
+              run: |
+                  $arch = if ("${{ matrix.platform }}" -eq "Win32") { "x86" } else { "x64" }
+                  $exe = "bin\$arch\OntyTask.exe"
+
+                  if (-not (Test-Path $exe)) {
+                    Write-Error "Executable not found: $exe"
+                    exit 1
+                  }
+
+                  $testMacro = @'
+                  {
+                    "onty": 1,
+                    "speed": 100.0,
+                    "loops": 1,
+                    "continuous": false,
+                    "events": [
+                      { "t": 10, "e": "kd", "vk": 65, "ext": 0 },
+                      { "t": 10, "e": "ku", "vk": 65, "ext": 0 }
+                    ]
+                  }
+                  '@
+                  $testFile = "$env:TEMP\smoke_test.onty"
+                  Set-Content -Path $testFile -Value $testMacro -Encoding UTF8
+
+                  & $exe "$testFile" --play --loop 1 --speed 100 --close-after --min
+                  Remove-Item -Path $testFile -Force -ErrorAction SilentlyContinue

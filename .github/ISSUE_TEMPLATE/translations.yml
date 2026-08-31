@@ -1,0 +1,149 @@
+name: 🌐 Language Translation
+description: Submit a new translation or language update
+title: "[i18n]: "
+labels: ["translations", "enhancement"]
+assignees:
+    - agzes
+body:
+    - type: markdown
+      attributes:
+          value: "## Thank you for contributing to OntyTask localization!"
+    - type: input
+      id: language_name
+      attributes:
+          label: Language Name
+          placeholder: e.g. Français (French), Deutsch (German), Español (Spanish)
+      validations:
+          required: true
+    - type: input
+      id: language_code
+      attributes:
+          label: Language Code
+          placeholder: e.g. fr, de, es, ja, pt-BR
+      validations:
+          required: true
+    - type: textarea
+      id: json_content
+      attributes:
+          label: Translation JSON
+          description: Translate the values below. Please keep all keys unchanged.
+          render: json
+          value: |
+              {
+                "lang": "Your Language Name",
+                "strings": {
+                  "app": "OntyTask",
+                  "record": "Record",
+                  "stop": "Stop",
+                  "play": "Play",
+                  "open": "Open...",
+                  "save": "Save...",
+                  "speed": "Speed",
+                  "speed05": "0.5x",
+                  "speed1": "1x (Normal)",
+                  "speed2": "2x (Fast)",
+                  "speed5": "5x",
+                  "speed10": "10x",
+                  "speed_turbo": "100x Turbo",
+                  "speed_max": "Max Speed (Instant)",
+                  "speed_custom": "Custom...",
+                  "loops": "Playback loops",
+                  "loops1": "1",
+                  "loops2": "2",
+                  "loops3": "3",
+                  "loops5": "5",
+                  "loops10": "10",
+                  "loops100": "100",
+                  "continuous": "Continuous (\\u221E)",
+                  "loops_custom2": "Custom...",
+                  "theme": "Theme",
+                  "interface_theme": "Interface theme",
+                  "theme_dark": "Dark",
+                  "theme_light": "Light",
+                  "theme_acrylic": "Acrylic",
+                  "language": "Language",
+                  "lang_en": "English",
+                  "lang_ru": "Русский",
+                  "lang_import": "Import translation JSON...",
+                  "lang_translate": "Translate on GitHub...",
+                  "hotkeys": "Hotkeys",
+                  "hk_record": "Recording",
+                  "hk_play": "Playback",
+                  "panic_keys": "Panic stop keys",
+                  "panic_pause": "Pause / Break",
+                  "panic_scroll": "Scroll Lock",
+                  "panic_esc": "Escape key",
+                  "panic_mouse": "Stop on mouse move",
+                  "statusbar": "Status bar",
+                  "sb_enable": "Show status bar",
+                  "sb_top": "Top of screen",
+                  "sb_bottom": "Bottom of screen",
+                  "sb_follow_monitor": "Follow cursor monitor",
+                  "assoc_onty": "Associate .onty files",
+                  "assoc_success": ".onty files registered",
+                  "assoc_removed": ".onty association removed",
+                  "topmost": "Always on top",
+                  "update": "Check for updates...",
+                  "update_available": "Update available!",
+                  "exit": "Exit",
+                  "about": "About OntyTask",
+                  "status_rec_stop": "Recording stopped",
+                  "status_play": "Playing",
+                  "status_play_stop": "Playback stopped",
+                  "status_saved": "Macro saved",
+                  "status_nothing": "Nothing recorded",
+                  "status_invalid": "Invalid file",
+                  "status_conflict": "Hotkey conflict",
+                  "status_max": "Event limit reached",
+                  "status_uptodate": "You have the latest version",
+                  "status_updatefail": "Update check failed",
+                  "status_translated": "Translation imported",
+                  "status_loaded": "Macro loaded",
+                  "about_desc": "An open-source successor to TinyTask for fast desktop and 3D automation.",
+                  "github": "GitHub",
+                  "license": "License",
+                  "prompt_loops": "Number of playback loops (1-99999)",
+                  "prompt_speed": "Speed multiplier (0.01-1000)",
+                  "ok": "OK",
+                  "cancel": "Cancel",
+                  "save_fail": "Unable to save file",
+                  "minimize": "Minimize",
+                  "hide": "Hide to tray",
+                  "settings": "Settings",
+                  "resave": "Save changes",
+                  "saved": "Saved",
+                  "hk_press": "Press a new hotkey (Esc to cancel)",
+                  "yes": "Yes",
+                  "no": "No",
+                  "new_macro": "New macro",
+                  "developed": "Developed with \\u2764 by Agzes",
+                  "lic_line": "Licensed under GNU GPL v3.0",
+                  "tray_icon": "Tray icon",
+                  "tray_auto": "Follow theme",
+                  "ui_icon": "Interface icon",
+                  "stop_bind": "Stop",
+                  "autominimize": "Auto-minimize on Rec/Play",
+                  "recent_files": "Recent files",
+                  "clear_recent": "Clear list",
+                  "no_recent": "(No recent files)",
+                  "clipboard": "Clipboard",
+                  "copy_clipboard": "Copy macro to clipboard",
+                  "paste_clipboard": "Paste macro from clipboard",
+                  "clipboard_loaded": "Macro loaded from clipboard",
+                  "clipboard_copied": "Macro copied to clipboard",
+                  "clipboard_empty": "Clipboard has no valid macro",
+                  "create_shortcut": "Create Desktop shortcut",
+                  "shortcut_success": "Desktop shortcut created",
+                  "shortcut_fail": "Failed to create shortcut",
+                  "install_local": "Install OntyTask to Local AppData",
+                  "install_success": "OntyTask installed successfully",
+                  "install_fail": "Failed to install OntyTask"
+                }
+              }
+      validations:
+          required: true
+    - type: textarea
+      id: notes
+      attributes:
+          label: Extra Notes / Context (optional)
+          placeholder: Any details about terminology or wording choices.
