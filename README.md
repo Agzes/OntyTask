@@ -8,7 +8,7 @@
     <br><h1 align="center">&nbsp;&nbsp;&nbsp;&nbsp; $\Huge{\textsf{OntyTask}}$ <sup><sup><kbd>v0.1</kbd></sup></sup></h1>
     <p><b>Super-light, fast, and simple macro recorder for Windows.</b><br>
     <i>A fresh, modern, and open-source alternative to TinyTask.</i></p>
-    <a href="#-how-to-build"><b><kbd> <br> ⏳ Coming Soon <br> </kbd></b></a>
+    <a href="https://github.com/Agzes/OntyTask/releases/tag/v.0.1.0"><b><kbd> <br> 📥 Download (v0.1.0) <br> </kbd></b></a>
     <a href="#-quick-start"><b><kbd> <br> ⚡ Quick Start <br> </kbd></b></a>
     <a href="#-features"><b><kbd> <br> ✨ Features <br> </kbd></b></a>
     <a href="#-ontytask-vs-tinytask"><b><kbd> <br> 📊 Comparison <br> </kbd></b></a>
