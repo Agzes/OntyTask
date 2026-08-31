@@ -116,6 +116,6 @@ Check out the full [Wiki](wiki/Home.md) for more details and guides:
 
 <div align="center">
     <br>
-    <b>OntyTask</b> (<b>O</b>pe<b>N</b> <b>t</b>in<b>Y</b> <b>TASK</b>) - <i>Simple, Fast, and Open-Source Automation.</i><br>
+    <b>OntyTask</b> (<b>O</b>pe<b>N</b> <b>T</b>in<b>Y</b> <b>TASK</b>) - <i>Simple, Fast, and Open-Source Automation.</i><br>
     Licensed under <a href="LICENSE">GNU General Public License v3.0</a>.
 </div>
