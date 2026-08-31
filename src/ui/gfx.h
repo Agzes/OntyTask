@@ -1,7 +1,7 @@
 ﻿#pragma once
+#include <windows.h>
 #include <gdiplus.h>
 #include <string>
-#include <windows.h>
 
 using Gdiplus::REAL;
 
