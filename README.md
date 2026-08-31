@@ -100,7 +100,7 @@ Your `.exe` file will be generated in `bin/x64/` or `bin/x86/`.
 
 ## Wiki & Guides
 
-Check out the full [Wiki](wiki/Home.md) for more details and guides:
+Check out the full [Wiki](wiki/) for more details and guides:
 
 - 🚀 [Getting Started Guide](wiki/Getting-Started.md) - First steps and interface guide.
 - 🎮 [Macro Engine & 3D Games](wiki/Engine.md) - How 3D camera tracking works.
