@@ -9,10 +9,10 @@
     <p><b>Super-light, fast, and simple macro recorder for Windows.</b><br>
     <i>A fresh, modern, and open-source alternative to TinyTask.</i></p>
     <a href="https://github.com/Agzes/OntyTask/releases/tag/v.0.1.0"><b><kbd> <br> 📥 Download (v0.1.0) <br> </kbd></b></a>
-    <a href="#-quick-start"><b><kbd> <br> ⚡ Quick Start <br> </kbd></b></a>
-    <a href="#-features"><b><kbd> <br> ✨ Features <br> </kbd></b></a>
-    <a href="#-ontytask-vs-tinytask"><b><kbd> <br> 📊 Comparison <br> </kbd></b></a>
-    <a href="#-how-to-build"><b><kbd> <br> 🛠️ Building <br> </kbd></b></a>
+    <a href="#quick-start"><b><kbd> <br> ⚡ Quick Start <br> </kbd></b></a>
+    <a href="#features"><b><kbd> <br> ✨ Features <br> </kbd></b></a>
+    <a href="#ontytask-vs-tinytask"><b><kbd> <br> 📊 Comparison <br> </kbd></b></a>
+    <a href="#how-to-build"><b><kbd> <br> 🛠️ Building <br> </kbd></b></a>
     <h2></h2>
 </div>
 
