@@ -31,6 +31,7 @@ OntyTask.exe --file "C:\Macros\farm.onty" --play --loop 5 --speed 2.0
 | `--min` / `--hide` | `-m`  | Launches OntyTask minimized to system tray               | `OntyTask.exe "farm.onty" --min --play` |
 | `--close-after`    | `-c`  | Automatically closes OntyTask when playback ends         | `OntyTask.exe "farm.onty" --play -c`    |
 | `--install`        | `-i`  | Installs OntyTask to Local AppData & registers shortcuts | `OntyTask.exe --install`                |
+| `--uninstall`      | `-u`  | Uninstalls OntyTask, removes shortcuts and registry keys | `OntyTask.exe --uninstall`              |
 
 ---
 

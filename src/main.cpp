@@ -97,7 +97,8 @@ enum {
   IDM_PASTE_CLIPBOARD = 193,
   IDM_CREATE_SHORTCUT = 194,
   IDM_INSTALL = 195,
-  IDM_UPDATE = 196,
+  IDM_UNINSTALL = 196,
+  IDM_UPDATE = 197,
   IDM_ABOUT,
   IDM_EXIT,
   IDM_RECENT_0 = 1700,
@@ -874,14 +875,33 @@ static bool CreateDesktopShortcut(const std::wstring &macroPath) {
   return SUCCEEDED(hr);
 }
 
-static bool InstallToLocalApp() {
+static const wchar_t UNINSTALL_KEY[] =
+    L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\OntyTask";
+
+static bool GetInstalledPaths(std::wstring &dirOut, std::wstring &exeOut) {
   wchar_t localApp[MAX_PATH];
   if (FAILED(
           SHGetFolderPathW(nullptr, CSIDL_LOCALAPPDATA, nullptr, 0, localApp)))
     return false;
-  std::wstring targetDir = std::wstring(localApp) + L"\\OntyTask";
+  dirOut = std::wstring(localApp) + L"\\OntyTask";
+  exeOut = dirOut + L"\\OntyTask.exe";
+  return true;
+}
+
+static bool IsAppInstalled() {
+  std::wstring dir, exe;
+  if (!GetInstalledPaths(dir, exe))
+    return false;
+  DWORD attr = GetFileAttributesW(exe.c_str());
+  return (attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY));
+}
+
+static bool InstallToLocalApp() {
+  std::wstring targetDir, targetExe;
+  if (!GetInstalledPaths(targetDir, targetExe))
+    return false;
+
   CreateDirectoryW(targetDir.c_str(), nullptr);
-  std::wstring targetExe = targetDir + L"\\OntyTask.exe";
 
   wchar_t curExe[MAX_PATH];
   GetModuleFileNameW(nullptr, curExe, MAX_PATH);
@@ -936,7 +956,125 @@ static bool InstallToLocalApp() {
   }
 
   CoUninitialize();
+
+  HKEY kUninst = nullptr;
+  if (RegCreateKeyExW(HKEY_CURRENT_USER, UNINSTALL_KEY, 0, nullptr, 0,
+                      KEY_WRITE, nullptr, &kUninst, nullptr) == ERROR_SUCCESS) {
+    const wchar_t name[] = L"OntyTask";
+    const wchar_t publisher[] = L"Agzes";
+    const wchar_t url[] = L"https://github.com/Agzes/OntyTask";
+    std::wstring uninstCmd = L"\"" + targetExe + L"\" --uninstall";
+    std::wstring quietUninstCmd = L"\"" + targetExe + L"\" --uninstall";
+    std::wstring icon = L"\"" + targetExe + L"\",0";
+
+    RegSetValueExW(kUninst, L"DisplayName", 0, REG_SZ, (const BYTE *)name,
+                   (DWORD)((wcslen(name) + 1) * sizeof(wchar_t)));
+    RegSetValueExW(kUninst, L"DisplayVersion", 0, REG_SZ,
+                   (const BYTE *)APP_VERSION_RAW,
+                   (DWORD)((wcslen(APP_VERSION_RAW) + 1) * sizeof(wchar_t)));
+    RegSetValueExW(kUninst, L"Publisher", 0, REG_SZ, (const BYTE *)publisher,
+                   (DWORD)((wcslen(publisher) + 1) * sizeof(wchar_t)));
+    RegSetValueExW(kUninst, L"DisplayIcon", 0, REG_SZ, (const BYTE *)icon.c_str(),
+                   (DWORD)((icon.size() + 1) * sizeof(wchar_t)));
+    RegSetValueExW(kUninst, L"UninstallString", 0, REG_SZ,
+                   (const BYTE *)uninstCmd.c_str(),
+                   (DWORD)((uninstCmd.size() + 1) * sizeof(wchar_t)));
+    RegSetValueExW(kUninst, L"QuietUninstallString", 0, REG_SZ,
+                   (const BYTE *)quietUninstCmd.c_str(),
+                   (DWORD)((quietUninstCmd.size() + 1) * sizeof(wchar_t)));
+    RegSetValueExW(kUninst, L"InstallLocation", 0, REG_SZ,
+                   (const BYTE *)targetDir.c_str(),
+                   (DWORD)((targetDir.size() + 1) * sizeof(wchar_t)));
+    RegSetValueExW(kUninst, L"URLInfoAbout", 0, REG_SZ, (const BYTE *)url,
+                   (DWORD)((wcslen(url) + 1) * sizeof(wchar_t)));
+    RegSetValueExW(kUninst, L"HelpLink", 0, REG_SZ, (const BYTE *)url,
+                   (DWORD)((wcslen(url) + 1) * sizeof(wchar_t)));
+    DWORD noModify = 1;
+    RegSetValueExW(kUninst, L"NoModify", 0, REG_DWORD, (const BYTE *)&noModify,
+                   sizeof(DWORD));
+    DWORD noRepair = 1;
+    RegSetValueExW(kUninst, L"NoRepair", 0, REG_DWORD, (const BYTE *)&noRepair,
+                   sizeof(DWORD));
+    RegCloseKey(kUninst);
+  }
+
   return true;
+}
+
+static bool UninstallFromLocalApp() {
+  RegisterFileAssociation(false);
+
+  wchar_t programs[MAX_PATH];
+  if (SUCCEEDED(
+          SHGetFolderPathW(nullptr, CSIDL_PROGRAMS, nullptr, 0, programs))) {
+    std::wstring startLnk = std::wstring(programs) + L"\\OntyTask.lnk";
+    DeleteFileW(startLnk.c_str());
+  }
+
+  wchar_t desktop[MAX_PATH];
+  if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_DESKTOPDIRECTORY, nullptr, 0,
+                                 desktop))) {
+    std::wstring deskLnk = std::wstring(desktop) + L"\\OntyTask.lnk";
+    DeleteFileW(deskLnk.c_str());
+  }
+
+  RegDeleteTreeW(HKEY_CURRENT_USER, UNINSTALL_KEY);
+
+  std::wstring targetDir, targetExe;
+  if (GetInstalledPaths(targetDir, targetExe)) {
+    std::wstring targetIni = targetDir + L"\\OntyTask.ini";
+    DeleteFileW(targetIni.c_str());
+
+    wchar_t curExe[MAX_PATH];
+    GetModuleFileNameW(nullptr, curExe, MAX_PATH);
+
+    if (_wcsicmp(curExe, targetExe.c_str()) == 0) {
+      wchar_t tempPath[MAX_PATH];
+      if (GetTempPathW(MAX_PATH, tempPath)) {
+        std::wstring batPath = std::wstring(tempPath) + L"ontytask_uninst.bat";
+        FILE *f = nullptr;
+        if (_wfopen_s(&f, batPath.c_str(), L"w") == 0 && f) {
+          fwprintf(f,
+                   L"@echo off\n"
+                   L":repeat\n"
+                   L"timeout /t 1 /nobreak >nul\n"
+                   L"del /f /q \"%s\" >nul 2>&1\n"
+                   L"if exist \"%s\" goto repeat\n"
+                   L"rd \"%s\" >nul 2>&1\n"
+                   L"del /f /q \"%%~f0\" >nul 2>&1\n",
+                   targetExe.c_str(), targetExe.c_str(), targetDir.c_str());
+          fclose(f);
+          STARTUPINFOW si = {sizeof(si)};
+          si.dwFlags = STARTF_USESHOWWINDOW;
+          si.wShowWindow = SW_HIDE;
+          PROCESS_INFORMATION pi = {};
+          std::wstring cmd = L"cmd.exe /c \"" + batPath + L"\"";
+          if (CreateProcessW(nullptr, &cmd[0], nullptr, nullptr, FALSE,
+                             CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+          }
+        }
+      }
+    } else {
+      DeleteFileW(targetExe.c_str());
+      RemoveDirectoryW(targetDir.c_str());
+    }
+  }
+  return true;
+}
+
+static void AutoSyncInstalledExe() {
+  std::wstring targetDir, targetExe;
+  if (!GetInstalledPaths(targetDir, targetExe))
+    return;
+  if (!IsAppInstalled())
+    return;
+  wchar_t curExe[MAX_PATH];
+  GetModuleFileNameW(nullptr, curExe, MAX_PATH);
+  if (_wcsicmp(curExe, targetExe.c_str()) != 0) {
+    InstallToLocalApp();
+  }
 }
 
 static void BuildMenu(HMENU root) {
@@ -1079,7 +1217,10 @@ static void BuildMenu(HMENU root) {
                    g_cfg.autoMinimize != 0, 0xE921);
   bool isAssoc = IsFileAssociationRegistered();
   AddCheckWithIcon(root, IDM_ASSOC_ONTY, L(L_ASSOC_ONTY), isAssoc, 0xE71B);
-  AddMI(root, IDM_INSTALL, L(L_INSTALL), 0xE896);
+  if (IsAppInstalled())
+    AddMI(root, IDM_UNINSTALL, L(L_UNINSTALL), 0xE74D);
+  else
+    AddMI(root, IDM_INSTALL, L(L_INSTALL), 0xE896);
 
   HMENU lg = CreatePopupMenu();
   AddCheck(lg, IDM_LENG, L(L_LANG_EN), g_cfg.lang == 1);
@@ -1614,6 +1755,18 @@ static void DoCmd(int id) {
     else
       StatusShow(L(L_INSTALL_FAIL), 3000);
     break;
+  case IDM_UNINSTALL: {
+    int res = UiMessage(g_hwnd, L(L_UNINSTALL_CONFIRM), L(L_APPNAME),
+                        UI_YESNO, UI_ICON_WARN);
+    if (res == IDYES) {
+      if (UninstallFromLocalApp()) {
+        StatusShow(L(L_UNINSTALL_SUCCESS), 3000);
+      } else {
+        StatusShow(L(L_UNINSTALL_FAIL), 3000);
+      }
+    }
+    break;
+  }
   case IDM_UPDATE:
     if (Update_Found())
       ShellExecuteW(g_hwnd, L"open", URL_RELEASES, nullptr, nullptr,
@@ -2718,6 +2871,10 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
         InstallToLocalApp();
         LocalFree(argv);
         return 0;
+      } else if (arg == L"--uninstall" || arg == L"-u") {
+        UninstallFromLocalApp();
+        LocalFree(argv);
+        return 0;
       } else if (arg == L"--play" || arg == L"-p")
         cli.play = true;
       else if (arg == L"--rec" || arg == L"-r")
@@ -2760,6 +2917,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     CloseHandle(mutex);
     return 0;
   }
+
+  AutoSyncInstalledExe();
 
   ConfigLoad();
   LangInit();

@@ -3,6 +3,10 @@
 #include <shlobj.h>
 #include <string>
 
+#ifndef CSIDL_LOCALAPPDATA
+#define CSIDL_LOCALAPPDATA 0x001c
+#endif
+
 Config g_cfg = {};
 HWND g_hwnd = nullptr;
 HINSTANCE g_hInst = nullptr;
@@ -214,6 +218,18 @@ bool IsFileAssociationRegistered() {
 bool RegisterFileAssociation(bool enable) {
   wchar_t exe[MAX_PATH];
   GetModuleFileNameW(nullptr, exe, MAX_PATH);
+
+  wchar_t localApp[MAX_PATH];
+  if (SUCCEEDED(
+          SHGetFolderPathW(nullptr, CSIDL_LOCALAPPDATA, nullptr, 0, localApp))) {
+    std::wstring installedExe =
+        std::wstring(localApp) + L"\\OntyTask\\OntyTask.exe";
+    DWORD attr = GetFileAttributesW(installedExe.c_str());
+    if (attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY)) {
+      lstrcpynW(exe, installedExe.c_str(), MAX_PATH);
+    }
+  }
+
   const wchar_t *exeName = wcsrchr(exe, L'\\');
   exeName = exeName ? exeName + 1 : L"OntyTask.exe";
 

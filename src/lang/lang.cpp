@@ -139,7 +139,14 @@ static const LEntry kTable[L_COUNT] = {
     {"install_success", L"OntyTask installed successfully",
      L"OntyTask успешно установлен"},
     {"install_fail", L"Failed to install OntyTask",
-     L"Не удалось установить OntyTask"}};
+     L"Не удалось установить OntyTask"},
+    {"uninstall_local", L"Uninstall OntyTask", L"Удалить OntyTask"},
+    {"uninstall_confirm",
+     L"Are you sure you want to uninstall OntyTask and remove shortcuts?",
+     L"Вы уверены, что хотите удалить OntyTask и его ярлыки?"},
+    {"uninstall_success", L"OntyTask uninstalled", L"OntyTask удален"},
+    {"uninstall_fail", L"Failed to uninstall OntyTask",
+     L"Не удалось удалить OntyTask"}};
 
 const wchar_t *L(int id) { return g_tab[id].c_str(); }
 

@@ -108,6 +108,10 @@
     "shortcut_fail": "Failed to create shortcut",
     "install_local": "Install OntyTask to Local AppData",
     "install_success": "OntyTask installed successfully",
-    "install_fail": "Failed to install OntyTask"
+    "install_fail": "Failed to install OntyTask",
+    "uninstall_local": "Uninstall OntyTask",
+    "uninstall_confirm": "Are you sure you want to uninstall OntyTask and remove shortcuts?",
+    "uninstall_success": "OntyTask uninstalled",
+    "uninstall_fail": "Failed to uninstall OntyTask"
   }
 }

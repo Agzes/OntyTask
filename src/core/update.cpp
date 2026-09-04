@@ -5,6 +5,7 @@
 #include <wininet.h>
 
 const wchar_t *APP_VERSION = L"v.0.1";
+const wchar_t *APP_VERSION_RAW = L"0.1.0";
 static const wchar_t *VER_URL =
     L"https://raw.githubusercontent.com/Agzes/OntyTask/main/version";
 const wchar_t *URL_RELEASES = L"https://github.com/Agzes/OntyTask/releases";

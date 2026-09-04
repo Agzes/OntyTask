@@ -48,7 +48,13 @@ Welcome to the **OntyTask** wiki! Here you will find guides on setting up, using
 
 8. **[Command Line & Automation](CLI-Automation.md)**
     - Run macros via CLI, batch files, or PowerShell
-    - Available flags (`--play`, `--loop`, `--speed`, `--min`, `--close-after`)
+    - Available flags (`--play`, `--loop`, `--speed`, `--min`, `--close-after`, `--install`, `--uninstall`)
+
+9. **[Installation, Updates & Uninstallation](Installation-And-Updates.md)**
+    - Portable vs. Installed mode and Windows Search indexing
+    - Installing via in-app menu, WinGet, or CLI
+    - Auto-sync updates when running a new `.exe`
+    - Clean uninstallation via menu, Settings, or WinGet
 
 ---
 

@@ -116,6 +116,10 @@ If you're creating a translation for another language, this table shows you wher
 | `install_local`     | Install OntyTask to Local AppData                                        | Установить OntyTask в Local AppData                                            | Menu item                 | Install action           |
 | `install_success`   | OntyTask installed successfully                                          | OntyTask успешно установлен                                                    | Status notification       | Install success          |
 | `install_fail`      | Failed to install OntyTask                                               | Не удалось установить OntyTask                                                 | Status notification       | Install error            |
+| `uninstall_local`   | Uninstall OntyTask                                                       | Удалить OntyTask                                                               | Menu item                 | Uninstall action         |
+| `uninstall_confirm` | Are you sure you want to uninstall OntyTask and remove shortcuts?        | Вы уверены, что хотите удалить OntyTask и его ярлыки?                          | Dialog prompt             | Confirmation prompt      |
+| `uninstall_success` | OntyTask uninstalled                                                     | OntyTask удален                                                                | Status notification       | Uninstall success        |
+| `uninstall_fail`    | Failed to uninstall OntyTask                                             | Не удалось удалить OntyTask                                                    | Status notification       | Uninstall error          |
 
 ---
 
