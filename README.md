@@ -4,7 +4,7 @@
     <kbd>🎮 3D Games & Camera</kbd>
     <kbd>📂 100% Open Source</kbd>
     <br><br>
-    <img src="assets/readme/OntyTask.png" height="128" alt="OntyTask (open tinytask) - logo & screenshots"/>
+    <img src="assets/readme/OntyTask.png" height="128" alt="OntyTask - logo & screenshots"/>
     <br><h1 align="center">&nbsp;&nbsp;&nbsp;&nbsp; $\Huge{\textsf{OntyTask}}$ <sup><sup><kbd>v0.1</kbd></sup></sup></h1>
     <p><b>Super-light, fast, and simple macro recorder for Windows.</b><br>
     <i>A fresh, modern, and open-source alternative to TinyTask.</i></p>
@@ -116,6 +116,6 @@ Check out the full [Wiki](wiki/) for more details and guides:
 
 <div align="center">
     <br>
-    <b>OntyTask</b> (<b>O</b>pe<b>N</b> <b>T</b>in<b>Y</b> <b>TASK</b>) - <i>Simple, Fast, and Open-Source Automation.</i><br>
+    <b>OntyTask</b> - <i>Simple, Fast, and Open-Source Automation.</i><br>
     Licensed under <a href="LICENSE">GNU General Public License v3.0</a>.
 </div>

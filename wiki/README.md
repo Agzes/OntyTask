@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="../assets/readme/OntyTask.png" height="128" alt="OntyTask (open tinytask) - logo & screenshots"/>
+    <img src="../assets/readme/OntyTask.png" height="128" alt="OntyTask - logo & screenshots"/>
 </div>
 
 # OntyTask Wiki
