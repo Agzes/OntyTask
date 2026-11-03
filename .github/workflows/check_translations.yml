@@ -3,12 +3,14 @@ name: Verify Translations
 on:
     push:
         paths:
+            - "translations/**"
             - "src/lang/**"
             - ".github/ISSUE_TEMPLATE/translations.yml"
             - "wiki/Translation-Table.md"
             - "scripts/verify_translations.py"
     pull_request:
         paths:
+            - "translations/**"
             - "src/lang/**"
             - ".github/ISSUE_TEMPLATE/translations.yml"
             - "wiki/Translation-Table.md"

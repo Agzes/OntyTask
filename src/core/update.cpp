@@ -13,6 +13,8 @@ const wchar_t *URL_GITHUB = L"https://github.com/Agzes/OntyTask";
 const wchar_t *URL_ISSUE = L"https://github.com/Agzes/OntyTask/issues/new";
 const wchar_t *URL_LICENSE =
     L"https://github.com/Agzes/OntyTask/blob/main/LICENSE";
+const wchar_t *URL_CREDITS =
+    L"https://github.com/Agzes/OntyTask/blob/main/CREDITS.md";
 
 static const int CUR_VERSION = 100000;
 

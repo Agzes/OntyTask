@@ -34,6 +34,7 @@ enum LStrId {
   L_LANG,
   L_LANG_EN,
   L_LANG_RU,
+  L_LANG_ZH,
   L_LANG_IMPORT,
   L_LANG_TRANSLATE,
   L_HOTKEYS,
@@ -87,6 +88,7 @@ enum LStrId {
   L_NO,
   L_NEWMACRO,
   L_DEVELOPED,
+  L_CREDITS,
   L_LIC_LINE,
   L_TRAY_ICON,
   L_TRAY_AUTO,
@@ -117,4 +119,4 @@ enum LStrId {
 
 const wchar_t *L(int id);
 void LangInit();
-bool LangImport(const wchar_t *path, std::wstring &nameOut);
+bool LangImport(const wchar_t *path);

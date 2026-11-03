@@ -1,18 +1,6 @@
 #!/usr/bin/env python3
-"""
 
-OntyTask - Translation Consistency Checker
-
-This script automatically verifies that all localization strings and keys are 100% synchronized across the entire project.
-It checks the following sources:
-  1. src/lang/lang.cpp                           -> Source of truth (kTable array)
-  2. src/lang/lang.h                             -> C++ string IDs (enum LStrId)
-  3. wiki/.translation.json                      -> Standalone JSON template
-  4. .github/ISSUE_TEMPLATE/translations.yml     -> GitHub Issue template
-  5. wiki/Translation-Table.md                   -> Wiki reference dictionary
-  6. src/**/*.cpp & src/**/*.h                   -> Active codebase usage (detects unused/dead keys)
-
-"""
+"""Checks that translations/*.json, src/lang/lang.cpp, src/lang/lang.h, and wiki/Translation-Table.md all use the same translation keys."""
 
 import glob
 import json
@@ -25,146 +13,108 @@ def main():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     os.chdir(root)
 
-    lang_cpp_path = os.path.join("src", "lang", "lang.cpp")
-    with open(lang_cpp_path, "r", encoding="utf-8") as f:
-        ktable_m = re.search(
-            r"static const LEntry kTable\[L_COUNT\] = \{(.*?)\};", f.read(), re.DOTALL
+    with open("src/lang/lang.cpp", "r", encoding="utf-8-sig") as f:
+        lang_cpp = f.read()
+    with open("src/lang/lang.h", "r", encoding="utf-8-sig") as f:
+        lang_h = f.read()
+
+    keys_m = re.search(
+        r"static const char \*kKeys\[L_COUNT\] = \{(.*?)\};", lang_cpp, re.S
+    )
+    if not keys_m:
+        print("[ERROR] Could not parse kKeys in lang.cpp")
+        return 1
+    cpp_keys = re.findall(r'"([^"]+)"', keys_m.group(1))
+
+    enum_m = re.search(r"enum LStrId \{(.*?)\};", lang_h, re.S)
+    if not enum_m:
+        print("[ERROR] Could not parse enum LStrId in lang.h")
+        return 1
+    enum_keys = [
+        k.strip()
+        for k in re.findall(r"\bL_[A-Z0-9_]+\b", enum_m.group(1))
+        if k.strip() != "L_COUNT"
+    ]
+
+    lang_files = sorted(glob.glob("translations/*.json"))
+    if not lang_files:
+        print("[ERROR] No translations/*.json files found")
+        return 1
+    languages = {}
+    for path in lang_files:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        code = data.get("code") or os.path.splitext(os.path.basename(path))[0]
+        languages[code] = (path, data)
+
+    if "en" not in languages:
+        print("[ERROR] translations/en.json not found")
+        return 1
+    en_keys = list(languages["en"][1].get("strings", {}).keys())
+
+    print("Translation Synchronization Summary:")
+    print(f"  Source keys (translations/en.json): {len(en_keys)}")
+    print(f"  Key list (lang.cpp kKeys):          {len(cpp_keys)}")
+    print(f"  enum LStrId (lang.h):               {len(enum_keys)}")
+    print(f"  Languages:                          {', '.join(sorted(languages))}")
+
+    errors = []
+
+    if cpp_keys != en_keys:
+        missing = [k for k in en_keys if k not in cpp_keys]
+        extra = [k for k in cpp_keys if k not in en_keys]
+        errors.append(
+            f"lang.cpp kKeys differ from en.json (missing: {missing}, extra: {extra})"
         )
-        if not ktable_m:
-            print("[ERROR] Could not parse kTable in lang.cpp")
-            return 1
-
-        raw_entries = re.findall(
-            r'\{\s*"([^"]+)"\s*,\s*((?:L"(?:\\.|[^"\\])*"\s*)+),\s*((?:L"(?:\\.|[^"\\])*"\s*)+)\}',
-            ktable_m.group(1),
+    if len(enum_keys) != len(cpp_keys):
+        errors.append(
+            f"Count mismatch: lang.h enum ({len(enum_keys)}) != lang.cpp kKeys ({len(cpp_keys)})"
         )
-        cpp_keys = []
-        cpp_map = {}
-        for key, en_raw, ru_raw in raw_entries:
-            en_str = "".join(re.findall(r'L"((?:\\.|[^"\\])*)"', en_raw))
-            ru_str = "".join(re.findall(r'L"((?:\\.|[^"\\])*)"', ru_raw))
-            cpp_keys.append(key)
-            cpp_map[key] = en_str
 
-    total_keys = len(cpp_keys)
+    for code, (path, data) in sorted(languages.items()):
+        strings = data.get("strings", {})
+        if set(strings.keys()) != set(en_keys):
+            missing = [k for k in en_keys if k not in strings]
+            extra = [k for k in strings if k not in en_keys]
+            errors.append(f"{path}: key mismatch (missing: {missing}, extra: {extra})")
+            continue
+        for key, value in strings.items():
+            if not isinstance(value, str):
+                errors.append(f"{path}: '{key}' must be a string")
 
-    lang_h_path = os.path.join("src", "lang", "lang.h")
-    with open(lang_h_path, "r", encoding="utf-8") as f:
-        enum_m = re.search(r"enum LStrId \{(.*?)\};", f.read(), re.DOTALL)
-        if not enum_m:
-            print("[ERROR] Could not parse enum LStrId in lang.h")
-            return 1
-        enum_keys = [
-            k.strip()
-            for k in re.findall(r"\bL_[A-Z0-9_]+\b", enum_m.group(1))
-            if k.strip() != "L_COUNT"
-        ]
-
-    wiki_json_path = os.path.join("wiki", ".translation.json")
-    if not os.path.exists(wiki_json_path):
-        wiki_json_path = os.path.join("wiki", "translation.json")
-    if not os.path.exists(wiki_json_path):
-        wiki_json_path = os.path.join("wiki", ".translation.json")
-        template = {
-            "lang": "en",
-            "name": "English",
-            "author": "@username",
-            "strings": cpp_map,
-        }
-        with open(wiki_json_path, "w", encoding="utf-8") as f:
-            json.dump(template, f, ensure_ascii=False, indent=2)
-            f.write("\n")
-
-    with open(wiki_json_path, "r", encoding="utf-8") as f:
-        wiki_json_raw = json.load(f)
-        json_dict = wiki_json_raw.get("strings", wiki_json_raw)
-        json_keys = list(json_dict.keys())
-
-    yml_path = os.path.join(".github", "ISSUE_TEMPLATE", "translations.yml")
-    with open(yml_path, "r", encoding="utf-8") as f:
-        json_m = re.search(
-            r"value:\s*\|\s*(\{.*?\})\s*validations:", f.read(), re.DOTALL
-        )
-        if not json_m:
-            print("[ERROR] Could not find JSON template in translations.yml")
-            return 1
-        raw_json = json.loads(json_m.group(1))
-        yml_dict = raw_json.get("strings", raw_json)
-        yml_keys = list(yml_dict.keys())
-
-    wiki_md_path = os.path.join("wiki", "Translation-Table.md")
-    with open(wiki_md_path, "r", encoding="utf-8") as f:
-        wiki_lines = [
-            line.split("|")[1].strip().strip("`")
-            for line in f
-            if line.startswith("| `")
-        ]
+    table_path = os.path.join("wiki", "Translation-Table.md")
+    if os.path.exists(table_path):
+        with open(table_path, "r", encoding="utf-8") as f:
+            table_keys = [
+                line.split("|")[1].strip().strip("`")
+                for line in f
+                if line.startswith("| `")
+            ]
+        if set(table_keys) != set(en_keys):
+            errors.append(
+                "wiki/Translation-Table.md keys differ from translations/en.json"
+            )
 
     cpp_files = [
         f
         for f in glob.glob("src/**/*.cpp", recursive=True)
         + glob.glob("src/**/*.h", recursive=True)
-        if not (f.endswith("lang.h") or f.endswith("lang.cpp"))
+        if not f.endswith("lang.h")
     ]
     all_code = "".join(
         open(f, "r", encoding="utf-8", errors="ignore").read() for f in cpp_files
     )
     unused_keys = [k for k in enum_keys if not re.search(r"\b" + k + r"\b", all_code)]
-
-    print("Translation Dynamic Synchronization Summary:")
-    print(f"  Source of truth (lang.cpp):            {total_keys} keys")
-    print(f"  enum LStrId (lang.h):                  {len(enum_keys)} keys")
-    print(f"  Standalone Template (translation.json):{len(json_keys)} keys")
-    print(f"  Issue Template (translations.yml):     {len(yml_keys)} keys")
-    print(f"  Wiki Reference (Translation-Table.md): {len(wiki_lines)} keys")
-    print("end!")
-
-    errors = []
-
-    if len(enum_keys) != total_keys:
-        errors.append(
-            f"Count mismatch: lang.h enum ({len(enum_keys)}) != lang.cpp kTable ({total_keys})"
-        )
-
-    diff_json_missing = [k for k in cpp_keys if k not in json_dict]
-    diff_json_extra = [k for k in json_dict if k not in cpp_map]
-    if diff_json_missing:
-        errors.append(f"Keys missing from wiki/translation.json: {diff_json_missing}")
-    if diff_json_extra:
-        errors.append(f"Extra keys in wiki/translation.json: {diff_json_extra}")
-
-    diff_yml_missing = [k for k in cpp_keys if k not in yml_keys]
-    diff_yml_extra = [k for k in yml_keys if k not in cpp_keys]
-    if diff_yml_missing:
-        errors.append(f"Keys missing from translations.yml: {diff_yml_missing}")
-    if diff_yml_extra:
-        errors.append(
-            f"Extra keys in translations.yml not in lang.cpp: {diff_yml_extra}"
-        )
-
-    diff_wiki_missing = [k for k in cpp_keys if k not in wiki_lines]
-    diff_wiki_extra = [k for k in wiki_lines if k not in cpp_keys]
-    if diff_wiki_missing:
-        errors.append(
-            f"Keys missing from wiki/Translation-Table.md: {diff_wiki_missing}"
-        )
-    if diff_wiki_extra:
-        errors.append(
-            f"Extra/duplicate keys in wiki/Translation-Table.md: {diff_wiki_extra}"
-        )
-
     if unused_keys:
-        errors.append(f"Unused enum keys in codebase (dead strings): {unused_keys}")
+        errors.append(f"Unused enum keys in codebase: {unused_keys}")
 
     if errors:
-        print("[FAIL] Found synchronization issues:")
-        for e in errors:
-            print(f"  - {e}")
+        print("[FAIL]")
+        for error in errors:
+            print(f"  - {error}")
         return 1
 
-    print(
-        f"[SUCCESS] All {total_keys} translation keys match across all sources and are 100% active in codebase!"
-    )
+    print(f"[SUCCESS] All {len(en_keys)} keys are synchronized.")
     return 0
 
 

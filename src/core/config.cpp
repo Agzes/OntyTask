@@ -118,7 +118,7 @@ void ConfigLoad() {
     g_cfg.loops = 1;
   if (g_cfg.theme < 0 || g_cfg.theme > 2)
     g_cfg.theme = defTheme;
-  if (g_cfg.lang < 0 || g_cfg.lang > 2)
+  if (g_cfg.lang < 0 || g_cfg.lang > 3)
     g_cfg.lang = 1;
   g_cfg.recordMods =
       GetPrivateProfileIntW(L"OntyTask", L"record_mods", -1, ini.c_str());
@@ -220,8 +220,8 @@ bool RegisterFileAssociation(bool enable) {
   GetModuleFileNameW(nullptr, exe, MAX_PATH);
 
   wchar_t localApp[MAX_PATH];
-  if (SUCCEEDED(
-          SHGetFolderPathW(nullptr, CSIDL_LOCALAPPDATA, nullptr, 0, localApp))) {
+  if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_LOCALAPPDATA, nullptr, 0,
+                                 localApp))) {
     std::wstring installedExe =
         std::wstring(localApp) + L"\\OntyTask\\OntyTask.exe";
     DWORD attr = GetFileAttributesW(installedExe.c_str());

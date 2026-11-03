@@ -78,6 +78,7 @@ enum {
   IDM_UI2,
   IDM_LENG = 150,
   IDM_LENRU,
+  IDM_LENZH,
   IDM_LENIMP,
   IDM_LENTR,
   IDM_HKR0 = 160,
@@ -893,7 +894,8 @@ static bool IsAppInstalled() {
   if (!GetInstalledPaths(dir, exe))
     return false;
   DWORD attr = GetFileAttributesW(exe.c_str());
-  return (attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY));
+  return (attr != INVALID_FILE_ATTRIBUTES &&
+          !(attr & FILE_ATTRIBUTE_DIRECTORY));
 }
 
 static bool InstallToLocalApp() {
@@ -974,7 +976,8 @@ static bool InstallToLocalApp() {
                    (DWORD)((wcslen(APP_VERSION_RAW) + 1) * sizeof(wchar_t)));
     RegSetValueExW(kUninst, L"Publisher", 0, REG_SZ, (const BYTE *)publisher,
                    (DWORD)((wcslen(publisher) + 1) * sizeof(wchar_t)));
-    RegSetValueExW(kUninst, L"DisplayIcon", 0, REG_SZ, (const BYTE *)icon.c_str(),
+    RegSetValueExW(kUninst, L"DisplayIcon", 0, REG_SZ,
+                   (const BYTE *)icon.c_str(),
                    (DWORD)((icon.size() + 1) * sizeof(wchar_t)));
     RegSetValueExW(kUninst, L"UninstallString", 0, REG_SZ,
                    (const BYTE *)uninstCmd.c_str(),
@@ -1225,6 +1228,7 @@ static void BuildMenu(HMENU root) {
   HMENU lg = CreatePopupMenu();
   AddCheck(lg, IDM_LENG, L(L_LANG_EN), g_cfg.lang == 1);
   AddCheck(lg, IDM_LENRU, L(L_LANG_RU), g_cfg.lang == 2);
+  AddCheck(lg, IDM_LENZH, L(L_LANG_ZH), g_cfg.lang == 3);
   AppendMenuW(lg, MF_SEPARATOR, 0, nullptr);
   AddMI(lg, IDM_LENIMP, L(L_LANG_IMPORT), 0xE896);
   AddMI(lg, IDM_LENTR, L(L_LANG_TRANSLATE), 0xE8A1);
@@ -1691,6 +1695,11 @@ static void DoCmd(int id) {
     LangInit();
     ConfigSave();
     break;
+  case IDM_LENZH:
+    g_cfg.lang = 3;
+    LangInit();
+    ConfigSave();
+    break;
   case IDM_LENIMP: {
     if (g_state.load() != ST_IDLE)
       break;
@@ -1703,8 +1712,7 @@ static void DoCmd(int id) {
     o.nMaxFile = MAX_PATH;
     o.Flags = OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
     if (GetOpenFileNameW(&o)) {
-      std::wstring name;
-      if (LangImport(path, name)) {
+      if (LangImport(path)) {
         g_cfg.lang = 0;
         ConfigSave();
         StatusShow(L(L_ST_TRANSLATED), 2500);
@@ -1756,8 +1764,8 @@ static void DoCmd(int id) {
       StatusShow(L(L_INSTALL_FAIL), 3000);
     break;
   case IDM_UNINSTALL: {
-    int res = UiMessage(g_hwnd, L(L_UNINSTALL_CONFIRM), L(L_APPNAME),
-                        UI_YESNO, UI_ICON_WARN);
+    int res = UiMessage(g_hwnd, L(L_UNINSTALL_CONFIRM), L(L_APPNAME), UI_YESNO,
+                        UI_ICON_WARN);
     if (res == IDYES) {
       if (UninstallFromLocalApp()) {
         StatusShow(L(L_UNINSTALL_SUCCESS), 3000);
@@ -2550,11 +2558,15 @@ static RECT AbUpdRect() {
   return r;
 }
 static RECT AbGhRect() {
-  RECT r = {0, AB_H - 32, AB_W / 2, AB_H};
+  RECT r = {0, AB_H - 32, AB_W / 3, AB_H};
   return r;
 }
 static RECT AbLiRect() {
-  RECT r = {AB_W / 2, AB_H - 32, AB_W, AB_H};
+  RECT r = {AB_W / 3, AB_H - 32, AB_W * 2 / 3, AB_H};
+  return r;
+}
+static RECT AbCrRect() {
+  RECT r = {AB_W * 2 / 3, AB_H - 32, AB_W, AB_H};
   return r;
 }
 
@@ -2709,27 +2721,35 @@ static LRESULT CALLBACK AboutProc(HWND h, UINT m, WPARAM w, LPARAM l) {
                                 (REAL)(ru.right - ru.left),
                                 (REAL)(ru.bottom - ru.top)),
                  &SfC(), &ufb);
-    RECT rg = AbGhRect(), rl2 = AbLiRect();
+    RECT rg = AbGhRect(), rl2 = AbLiRect(), rcr = AbCrRect();
     Gdiplus::Color ghc = light
                              ? GdiCol(hover == 1 ? ThHover2() : ThBg2())
                              : Gdiplus::Color(hover == 1 ? 70 : 50, 60, 60, 60);
     Gdiplus::Color lic = light
                              ? GdiCol(hover == 2 ? ThHover2() : ThBg2())
                              : Gdiplus::Color(hover == 2 ? 70 : 50, 60, 60, 60);
+    Gdiplus::Color crc = light
+                             ? GdiCol(hover == 5 ? ThHover2() : ThBg2())
+                             : Gdiplus::Color(hover == 5 ? 70 : 50, 60, 60, 60);
     Gdiplus::SolidBrush ghf(ghc);
     Gdiplus::SolidBrush lif(lic);
+    Gdiplus::SolidBrush crf(crc);
     g.FillRectangle(&ghf, (REAL)rg.left, (REAL)rg.top,
                     (REAL)(rg.right - rg.left), (REAL)(rg.bottom - rg.top));
     g.FillRectangle(&lif, (REAL)rl2.left, (REAL)rl2.top,
                     (REAL)(rl2.right - rl2.left), (REAL)(rl2.bottom - rl2.top));
+    g.FillRectangle(&crf, (REAL)rcr.left, (REAL)rcr.top,
+                    (REAL)(rcr.right - rcr.left), (REAL)(rcr.bottom - rcr.top));
     g.FillRectangle(&bb, (REAL)rg.left, (REAL)rg.top, 1.0f,
                     (REAL)(rg.bottom - rg.top));
     g.FillRectangle(&bb, (REAL)(rg.right - 1), (REAL)rg.top, 1.0f,
                     (REAL)(rg.bottom - rg.top));
     g.FillRectangle(&bb, (REAL)(rl2.right - 1), (REAL)rl2.top, 1.0f,
                     (REAL)(rl2.bottom - rl2.top));
+    g.FillRectangle(&bb, (REAL)(rcr.right - 1), (REAL)rcr.top, 1.0f,
+                    (REAL)(rcr.bottom - rcr.top));
     g.FillRectangle(&bb, (REAL)rg.left, (REAL)rg.bottom - 1,
-                    (REAL)(rl2.right - rg.left), 1.0f);
+                    (REAL)(rcr.right - rg.left), 1.0f);
     static Gdiplus::StringFormat sfA;
     sfA.SetAlignment(Gdiplus::StringAlignmentCenter);
     sfA.SetLineAlignment(Gdiplus::StringAlignmentCenter);
@@ -2745,6 +2765,11 @@ static LRESULT CALLBACK AboutProc(HWND h, UINT m, WPARAM w, LPARAM l) {
                                 (REAL)(rl2.right - rl2.left),
                                 (REAL)(rl2.bottom - rl2.top)),
                  &sfA, &btb);
+    g.DrawString(L(L_CREDITS), -1, &f9b,
+                 Gdiplus::RectF((REAL)rcr.left, (REAL)rcr.top,
+                                (REAL)(rcr.right - rcr.left),
+                                (REAL)(rcr.bottom - rcr.top)),
+                 &sfA, &btb);
     BitBlt(hdc, 0, 0, rc.right, rc.bottom, mem, 0, 0, SRCCOPY);
     SelectObject(mem, old);
     DeleteObject(bm);
@@ -2754,10 +2779,11 @@ static LRESULT CALLBACK AboutProc(HWND h, UINT m, WPARAM w, LPARAM l) {
   }
   case WM_MOUSEMOVE: {
     POINT pt = {GET_X_LPARAM(l), GET_Y_LPARAM(l)};
-    RECT rg = AbGhRect(), rl = AbLiRect(), rcl = AbCloseRect(),
+    RECT rg = AbGhRect(), rl = AbLiRect(), cr = AbCrRect(), rcl = AbCloseRect(),
          ru = AbUpdRect();
     int nh = PtInRect(&rg, pt)    ? 1
              : PtInRect(&rl, pt)  ? 2
+             : PtInRect(&cr, pt)  ? 5
              : PtInRect(&rcl, pt) ? 3
              : PtInRect(&ru, pt)  ? 4
                                   : 0;
@@ -2786,6 +2812,8 @@ static LRESULT CALLBACK AboutProc(HWND h, UINT m, WPARAM w, LPARAM l) {
       ShellExecuteW(h, L"open", URL_GITHUB, nullptr, nullptr, SW_SHOWNORMAL);
     else if (d->hover == 2)
       ShellExecuteW(h, L"open", URL_LICENSE, nullptr, nullptr, SW_SHOWNORMAL);
+    else if (d->hover == 5)
+      ShellExecuteW(h, L"open", URL_CREDITS, nullptr, nullptr, SW_SHOWNORMAL);
     else if (d->hover == 3) {
       d->done = true;
       DestroyWindow(h);
