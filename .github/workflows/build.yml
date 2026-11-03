@@ -1,0 +1,50 @@
+name: Build OntyTask
+
+on:
+    push:
+        branches:
+            - main
+        tags:
+            - "v*"
+
+permissions:
+    contents: read
+
+jobs:
+    build:
+        name: Build Release
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Setup MSBuild
+              uses: microsoft/setup-msbuild@v2
+
+            - name: Build project
+              run: msbuild OntyTask.vcxproj /p:Configuration=Release /p:Platform=x64 /m
+
+            - name: Prepare release files
+              shell: pwsh
+              run: |
+                  $exe = Get-ChildItem 'bin/x64/*.exe' -File | Select-Object -First 1
+                  if (-not $exe) { throw 'No executable found in bin/x64' }
+                  if ($exe.Name -ne 'OntyTask.exe') {
+                    Move-Item -Path $exe.FullName -Destination (Join-Path 'bin/x64' 'OntyTask.exe') -Force
+                  }
+                  $target = 'bin/x64/OntyTask.exe'
+                  $hash = (Get-FileHash -Path $target -Algorithm SHA256).Hash.ToLower()
+                  $line = "$hash  OntyTask.exe"
+                  $line | Set-Content -Path 'bin/x64/SHA256SUMS.txt' -Encoding ascii
+                  Write-Output $line
+                  Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## SHA-256`n$line"
+
+            - name: Upload build artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: OntyTask-Release-${{ github.ref_name }}
+                  path: |
+                      bin/x64/OntyTask.exe
+                      bin/x64/SHA256SUMS.txt
+                  if-no-files-found: error
