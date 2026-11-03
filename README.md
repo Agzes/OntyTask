@@ -25,6 +25,7 @@
 ## Features
 
 - **Records Everything**: Clicks, drags, mouse wheel scrolls, typing, and **3D camera turns**.
+- **Autoclicker Mode**: Switch between macro and clicker modes, auto-click the mouse (including X1/X2 buttons) or repeat a key with a custom interval, and single, double, or timed hold action.
 - **Universal Hotkeys**: Rebind Record and Play to any single key (<kbd>F8</kbd>, <kbd>PrtScn</kbd>) or **custom modifier combo**.
 - **Flexible Speeds**: Slow it down (`0.5x`), keep it real-time (`1x`), speed it up (`up to 100x Turbo`), instant mode, or custom (`0.01x` to `1000x`).
 - **Playback Loops**: Quick presets (`1`, `2`, `3`, `5`, `10`, `100`...), loop forever (`∞`), or set an exact count.

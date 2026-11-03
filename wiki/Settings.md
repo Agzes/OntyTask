@@ -47,3 +47,19 @@ To ensure the status bar never covers clickable buttons or in-game elements:
 
 - When your mouse cursor moves close to the status bar, it smoothly jumps to the opposite edge of the screen.
 - Once the cursor leaves the area, it returns to its configured position.
+
+---
+
+## 4. Autoclicker Mode
+
+Use the mode button in the toolbar to switch between **Onty** (macro recorder) and **Clicker**. Clicker mode expands the window with settings:
+
+- **Interval:** Delay between actions in milliseconds. Values up to `999999999999` are accepted. Click the value to change it.
+- **Target:** Mouse or keyboard.
+- **Button / Key:** Mouse button (left, right, middle, X1, X2), or the key captured from the keyboard.
+- **Type:** Single, double, or hold. Hold presses the button or key for the configured hold time on each cycle.
+- **Hold:** Hold duration in milliseconds. This row appears when Type is set to Hold.
+
+The toolbar buttons become **Start** and **Stop**, and the main menu shows clicker controls instead of macro speed and loop options. The clicker uses the same hotkey as macro playback; it is available in the clicker menu under **Hotkeys**.
+
+While the OntyTask window is focused and the mouse cursor is inside it, the clicker skips actions so it does not click its own interface. Mouse clicking resumes when the cursor leaves the window or the window loses focus; keyboard clicking resumes when OntyTask is no longer focused.

@@ -396,6 +396,7 @@ int UiMessage(HWND owner, const wchar_t *text, const wchar_t *caption,
 struct UiHk {
   HWND h = nullptr;
   std::wstring title;
+  std::wstring hint;
   int mods = 0, vk = 0, liveMods = 0;
   bool got = false, done = false, ok = false, tracking = false;
   int hoverClose = 0;
@@ -597,7 +598,7 @@ static LRESULT CALLBACK HkProc(HWND h, UINT m, WPARAM w, LPARAM l) {
 
     int dpi = GfxDpi();
     auto Scale = [dpi](int px) { return MulDiv(px, dpi, 96); };
-    g.DrawString(L(L_HK_PRESS), -1, &ft,
+    g.DrawString(d->hint.c_str(), -1, &ft,
                  Gdiplus::RectF(0, (REAL)(d->titleH + Scale(12)),
                                 (REAL)rc.right, (REAL)Scale(20)),
                  &sfC, &dim);
@@ -632,7 +633,8 @@ static LRESULT CALLBACK HkProc(HWND h, UINT m, WPARAM w, LPARAM l) {
   return DefWindowProcW(h, m, w, l);
 }
 
-bool UiHotkeyCapture(HWND owner, bool play, int &modsOut, int &vkOut) {
+static bool UiCaptureCore(HWND owner, const wchar_t *title, const wchar_t *hint,
+                          int &modsOut, int &vkOut) {
   static bool reg = false;
   if (!reg) {
     WNDCLASSW wc = {};
@@ -646,7 +648,8 @@ bool UiHotkeyCapture(HWND owner, bool play, int &modsOut, int &vkOut) {
   if (!owner)
     owner = g_hwnd;
   UiHk d;
-  d.title = play ? L(L_HK_PLAY) : L(L_HK_REC);
+  d.title = title ? title : L"";
+  d.hint = hint ? hint : L(L_HK_PRESS);
   d.owner = owner;
   g_hk = &d;
   int dpi = GfxDpi();
@@ -676,4 +679,18 @@ bool UiHotkeyCapture(HWND owner, bool play, int &modsOut, int &vkOut) {
     vkOut = d.vk;
   }
   return d.ok;
+}
+
+bool UiHotkeyCapture(HWND owner, bool play, int &modsOut, int &vkOut) {
+  return UiCaptureCore(owner, play ? L(L_HK_PLAY) : L(L_HK_REC), L(L_HK_PRESS),
+                       modsOut, vkOut);
+}
+
+bool UiHotkeyCaptureNamed(HWND owner, const wchar_t *title, int &modsOut,
+                          int &vkOut) {
+  return UiCaptureCore(owner, title, L(L_HK_PRESS), modsOut, vkOut);
+}
+
+bool UiKeyCapture(HWND owner, const wchar_t *title, int &modsOut, int &vkOut) {
+  return UiCaptureCore(owner, title, title, modsOut, vkOut);
 }

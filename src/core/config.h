@@ -11,6 +11,11 @@ struct Config {
   int panicPause, panicScroll, panicEsc, panicMouseMove;
   int statusbarShow, statusbarFollowCursor;
   int autoMinimize;
+  int mode;
+  int clickTarget, clickButton, clickType;
+  long long clickInterval;
+  int clickHold;
+  int clickKeyMods, clickKeyVk;
 };
 
 extern Config g_cfg;

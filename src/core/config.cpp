@@ -1,4 +1,5 @@
 ﻿#include "core/config.h"
+#include <cstdlib>
 #include <cwchar>
 #include <shlobj.h>
 #include <string>
@@ -112,6 +113,44 @@ void ConfigLoad() {
     g_cfg.uiIcon = 0;
   g_cfg.autoMinimize =
       GetPrivateProfileIntW(L"OntyTask", L"auto_minimize", 0, ini.c_str());
+  g_cfg.mode = GetPrivateProfileIntW(L"OntyTask", L"mode", 0, ini.c_str());
+  if (g_cfg.mode < 0 || g_cfg.mode > 1)
+    g_cfg.mode = 0;
+  g_cfg.clickTarget =
+      GetPrivateProfileIntW(L"OntyTask", L"click_target", 0, ini.c_str());
+  if (g_cfg.clickTarget < 0 || g_cfg.clickTarget > 1)
+    g_cfg.clickTarget = 0;
+  wchar_t ciBuf[64] = L"";
+  GetPrivateProfileStringW(L"OntyTask", L"click_interval", L"100", ciBuf, 64,
+                           ini.c_str());
+  long long iv = wcstoll(ciBuf, nullptr, 10);
+  if (iv < 1)
+    iv = 1;
+  if (iv > 999999999999LL)
+    iv = 999999999999LL;
+  g_cfg.clickInterval = iv;
+  g_cfg.clickButton =
+      GetPrivateProfileIntW(L"OntyTask", L"click_button", 0, ini.c_str());
+  if (g_cfg.clickButton < 0 || g_cfg.clickButton > 4)
+    g_cfg.clickButton = 0;
+  g_cfg.clickType =
+      GetPrivateProfileIntW(L"OntyTask", L"click_type", 0, ini.c_str());
+  if (g_cfg.clickType < 0 || g_cfg.clickType > 2)
+    g_cfg.clickType = 0;
+  g_cfg.clickHold =
+      GetPrivateProfileIntW(L"OntyTask", L"click_hold", 100, ini.c_str());
+  if (g_cfg.clickHold < 1)
+    g_cfg.clickHold = 1;
+  if (g_cfg.clickHold > 60000)
+    g_cfg.clickHold = 60000;
+  g_cfg.clickKeyMods =
+      GetPrivateProfileIntW(L"OntyTask", L"click_key_mods", 0, ini.c_str());
+  if (g_cfg.clickKeyMods < 0 || g_cfg.clickKeyMods > 15)
+    g_cfg.clickKeyMods = 0;
+  g_cfg.clickKeyVk =
+      GetPrivateProfileIntW(L"OntyTask", L"click_key_vk", 0, ini.c_str());
+  if (g_cfg.clickKeyVk < 0 || g_cfg.clickKeyVk > 255)
+    g_cfg.clickKeyVk = 0;
   if (g_cfg.speed < -5 || g_cfg.speed > 1000)
     g_cfg.speed = 1;
   if (g_cfg.loops < 1 || g_cfg.loops > 99999)
@@ -188,6 +227,15 @@ void ConfigSave() {
   w(L"tray_icon", g_cfg.trayIcon);
   w(L"ui_icon", g_cfg.uiIcon);
   w(L"auto_minimize", g_cfg.autoMinimize);
+  w(L"mode", g_cfg.mode);
+  w(L"click_target", g_cfg.clickTarget);
+  swprintf_s(b, L"%lld", g_cfg.clickInterval);
+  WritePrivateProfileStringW(L"OntyTask", L"click_interval", b, ini.c_str());
+  w(L"click_button", g_cfg.clickButton);
+  w(L"click_type", g_cfg.clickType);
+  w(L"click_hold", g_cfg.clickHold);
+  w(L"click_key_mods", g_cfg.clickKeyMods);
+  w(L"click_key_vk", g_cfg.clickKeyVk);
   w(L"record_mods", g_cfg.recordMods);
   w(L"record_vk", g_cfg.recordVk);
   w(L"play_mods", g_cfg.playMods);

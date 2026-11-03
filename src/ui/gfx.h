@@ -25,7 +25,8 @@ HFONT GlyphFont(int px);
 void GfxRoundRect(Gdiplus::Graphics &g, const RECT &r, Gdiplus::Color fill,
                   REAL radius, Gdiplus::Color border, bool hasBorder);
 void DrawGlyph(HDC hdc, Gdiplus::Graphics &g, Gdiplus::REAL cx,
-               Gdiplus::REAL cy, int px, wchar_t code, COLORREF col);
+               Gdiplus::REAL cy, int px, wchar_t code, COLORREF col,
+               int alpha = 255);
 void GfxThemedButton(Gdiplus::Graphics &g, HDC hdc, const RECT &r, int state,
                      bool primary = false);
 enum { CHB_MIN = 1, CHB_PIN = 4, CHB_SEP = 8 };

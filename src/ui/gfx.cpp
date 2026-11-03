@@ -197,14 +197,14 @@ static void GlyphInkFix(HDC ref, Gdiplus::Graphics &target, wchar_t code,
 }
 
 void DrawGlyph(HDC hdc, Gdiplus::Graphics &g, REAL cx, REAL cy, int px,
-               wchar_t code, COLORREF col) {
+               wchar_t code, COLORREF col, int alpha) {
   REAL dx = 0, dy = 0;
   GlyphInkFix(hdc, g, code, px, &dx, &dy);
   Gdiplus::StringFormat sf(Gdiplus::StringFormat::GenericTypographic());
   sf.SetAlignment(Gdiplus::StringAlignmentCenter);
   sf.SetLineAlignment(Gdiplus::StringAlignmentCenter);
   Gdiplus::Font f(hdc, GlyphFont(px));
-  Gdiplus::SolidBrush b(GdiCol(col));
+  Gdiplus::SolidBrush b(GdiCol(col, alpha));
   std::wstring s(1, code);
   REAL box = (REAL)px * 2.0f;
   g.DrawString(

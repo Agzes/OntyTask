@@ -1,6 +1,7 @@
 ﻿#include "core/config.h"
 #include "core/json.h"
 #include "core/update.h"
+#include "engine/clicker.h"
 #include "engine/engine.h"
 #include "lang/lang.h"
 #include "ui/gfx.h"
@@ -103,6 +104,23 @@ enum {
   IDM_ABOUT,
   IDM_DONATE,
   IDM_EXIT,
+  IDM_SAVE_CURRENT = 201,
+  IDM_CLICK_START,
+  IDM_CLICK_STOP,
+  IDM_CLICK_INTERVAL,
+  IDM_CLICK_TARGET_MOUSE,
+  IDM_CLICK_TARGET_KEY,
+  IDM_CLICK_BTN_LEFT,
+  IDM_CLICK_BTN_RIGHT,
+  IDM_CLICK_BTN_MIDDLE,
+  IDM_CLICK_BTN_X1,
+  IDM_CLICK_BTN_X2,
+  IDM_CLICK_TYPE1,
+  IDM_CLICK_TYPE2,
+  IDM_CLICK_TYPE3,
+  IDM_CLICK_HOLD,
+  IDM_CLICK_KEY,
+  IDM_HKCLICK,
   IDM_RECENT_0 = 1700,
   IDM_RECENT_7 = 1707,
   IDM_RECENT_CLEAR = 1708
@@ -111,15 +129,19 @@ enum {
 static const int WIN_W = 250, TB_H = 30, TOOL_H = 45, STATUS_H = 24, TILES = 5,
                  TILE_W = WIN_W / TILES;
 static const int WIN_H = TB_H + TOOL_H + STATUS_H;
+static const int CLICK_H = 60;
+static const int CFG_ROW_H = CLICK_H / 2;
 
 static const wchar_t GLYPH_OPEN = 0xE8E5, GLYPH_SAVE = 0xE74E, GLYPH_REC = 0,
                      GLYPH_STOP = 0xE71A, GLYPH_PLAY = 0xE768;
 
-static const int CMD_BTN[TILES] = {IDM_OPEN, IDM_SAVE, IDM_REC, IDM_PLAY, 0};
-static const wchar_t GLYPH_BTN[TILES] = {GLYPH_OPEN, GLYPH_SAVE, GLYPH_REC,
-                                         GLYPH_PLAY, 0xE713};
-
 static int g_hoverB = -1, g_pressB = -1, g_hoverT = 0;
+static int g_hoverRow = -1, g_pressRow = -1;
+static int g_hoverCell = -1, g_pressCell = -1;
+static float g_panelFade = 0.0f, g_panelTarget = 0.0f;
+static float g_extraH = 0.0f, g_extraTarget = 0.0f;
+static DWORD g_uiTick = 0;
+static bool g_inMove = false;
 static HWND g_abHwnd = nullptr;
 static COLORREF g_menuIcon = RGB(210, 210, 210);
 static bool g_trayOn = false;
@@ -134,18 +156,57 @@ static bool InputDialog(const wchar_t *prompt, int init, int minv, int maxv,
                         int &out);
 static void ShowAbout();
 
+static int ClientH() {
+  if (g_hwnd) {
+    RECT r;
+    GetClientRect(g_hwnd, &r);
+    if (r.bottom > 0)
+      return r.bottom;
+  }
+  return WIN_H + (int)(g_extraH + 0.5f);
+}
+
+static int StatusY() { return ClientH() - STATUS_H; }
+
+static bool ClickerMode() { return g_cfg.mode == 1; }
+
+static int ClickAreaH() {
+  return CLICK_H + (g_cfg.clickType == CLICK_HOLD ? CFG_ROW_H : 0);
+}
+
 static RECT TileRect(int i) {
   RECT r = {i * TILE_W, TB_H, (i + 1) * TILE_W, TB_H + TOOL_H};
   return r;
 }
 
+static RECT ModeRowRect(int i) {
+  RECT r = {2 * TILE_W, TB_H + 1 + i * (TOOL_H - 1) / 2, 4 * TILE_W - 1,
+            TB_H + 1 + (i + 1) * (TOOL_H - 1) / 2};
+  return r;
+}
+
+static RECT ClickCellRect(int i) {
+  int top = TB_H + TOOL_H;
+  if (i == 4) {
+    int y0 = top + 2 * CFG_ROW_H;
+    RECT r = {0, y0, WIN_W, y0 + CFG_ROW_H};
+    return r;
+  }
+  int col = i % 2, row = i / 2;
+  int x0 = col * (WIN_W / 2);
+  int y0 = top + row * CFG_ROW_H;
+  RECT r = {x0, y0, col == 0 ? WIN_W / 2 : WIN_W, y0 + CFG_ROW_H};
+  return r;
+}
+
 static RECT UpdateBtnRect() {
-  RECT r = {WIN_W - 23, TB_H + TOOL_H + 1, WIN_W - 1,
-            TB_H + TOOL_H + STATUS_H - 1};
+  int sy = StatusY();
+  RECT r = {WIN_W - 23, sy + 1, WIN_W - 1, sy + STATUS_H - 1};
   return r;
 }
 static RECT ReSaveBtnRect() {
-  RECT r = {0, TB_H + TOOL_H + 1, 23, TB_H + TOOL_H + STATUS_H - 1};
+  int sy = StatusY();
+  RECT r = {0, sy + 1, 23, sy + STATUS_H - 1};
   return r;
 }
 static std::wstring g_lastFile;
@@ -153,6 +214,42 @@ static bool g_dirty = false;
 
 static COLORREF RecRed() { return RGB(232, 64, 54); }
 static COLORREF PlayBlue() { return RGB(90, 184, 224); }
+
+static COLORREF g_fadeBg = RGB(30, 30, 30);
+static COLORREF g_acrylicBg = RGB(30, 30, 30);
+static bool g_acrylicBgValid = false;
+
+static COLORREF SampleAcrylicBg() {
+  if (!g_hwnd)
+    return g_acrylicBg;
+  if (GetForegroundWindow() != g_hwnd && g_acrylicBgValid)
+    return g_acrylicBg;
+  POINT pt = {3, 45};
+  ClientToScreen(g_hwnd, &pt);
+  HDC dc = GetDC(nullptr);
+  COLORREF c = GetPixel(dc, pt.x, pt.y);
+  ReleaseDC(nullptr, dc);
+  if (c != CLR_INVALID) {
+    g_acrylicBg = c;
+    g_acrylicBgValid = true;
+  }
+  return g_acrylicBg;
+}
+
+static COLORREF MixColor(COLORREF a, COLORREF b, int t) {
+  if (t <= 0)
+    return a;
+  if (t >= 255)
+    return b;
+  int r = GetRValue(a) + (GetRValue(b) - GetRValue(a)) * t / 255;
+  int g = GetGValue(a) + (GetGValue(b) - GetGValue(a)) * t / 255;
+  int bl = GetBValue(a) + (GetBValue(b) - GetBValue(a)) * t / 255;
+  return RGB(r, g, bl);
+}
+
+static COLORREF FadeOnBg(COLORREF fg, int alpha) {
+  return MixColor(g_fadeBg, fg, alpha);
+}
 
 static Gdiplus::StringFormat &SfL() {
   static Gdiplus::StringFormat f;
@@ -184,6 +281,8 @@ static bool InputDialog(const wchar_t *prompt, int init, int minv, int maxv,
                         int &out);
 static bool InputDialogFloat(const wchar_t *prompt, double init, double minv,
                              double maxv, double &out);
+static bool InputDialog64(const wchar_t *prompt, long long init, long long minv,
+                          long long maxv, long long &out);
 
 static std::wstring FileNameOnly(const std::wstring &p) {
   const wchar_t *base = wcsrchr(p.c_str(), L'\\');
@@ -198,6 +297,53 @@ static std::wstring CleanPath(std::wstring p) {
          (p.back() == L' ' || p.back() == L'\"' || p.back() == L'\''))
     p.pop_back();
   return p;
+}
+
+static std::wstring ClickTargetText() {
+  return L(g_cfg.clickTarget == CLICK_TARGET_KEY ? L_CLICK_KEYBOARD
+                                                 : L_CLICK_MOUSE);
+}
+
+static std::wstring ClickButtonText() {
+  if (g_cfg.clickButton == CLICK_BUTTON_RIGHT)
+    return L(L_CLICK_RIGHT);
+  if (g_cfg.clickButton == CLICK_BUTTON_MIDDLE)
+    return L(L_CLICK_MIDDLE);
+  if (g_cfg.clickButton == CLICK_BUTTON_X1)
+    return L"X1";
+  if (g_cfg.clickButton == CLICK_BUTTON_X2)
+    return L"X2";
+  return L(L_CLICK_LEFT);
+}
+
+static std::wstring ClickTypeText() {
+  if (g_cfg.clickType == CLICK_HOLD)
+    return L(L_CLICK_HOLD);
+  return L(g_cfg.clickType == CLICK_DOUBLE ? L_CLICK_DOUBLE : L_CLICK_SINGLE);
+}
+
+static std::wstring ClickKeyText() {
+  if (!g_cfg.clickKeyVk)
+    return L"--";
+  return FmtHk(g_cfg.clickKeyMods, g_cfg.clickKeyVk);
+}
+
+static std::wstring ClickValueText() {
+  if (g_cfg.clickTarget == CLICK_TARGET_KEY)
+    return ClickKeyText();
+  return ClickButtonText();
+}
+
+static std::wstring ClickIntervalText() {
+  wchar_t b[64];
+  swprintf_s(b, L"%lld %s", g_cfg.clickInterval, L(L_MS));
+  return b;
+}
+
+static std::wstring ClickHoldText() {
+  wchar_t b[64];
+  swprintf_s(b, L"%d %s", g_cfg.clickHold, L(L_MS));
+  return b;
 }
 
 static std::wstring DockStatusText() {
@@ -215,6 +361,10 @@ static std::wstring DockStatusText() {
     else
       swprintf_s(b2, L"PLAY %s (%d/%d)", b, g_playLoop.load() + 1, g_cfg.loops);
     return b2;
+  }
+  if (Clicker_IsRunning()) {
+    FmtMmSs(b, 32, GetTickCount() - Clicker_StartTick());
+    return std::wstring(L"CLICK ") + b;
   }
   if (!g_lastFile.empty())
     return FileNameOnly(g_lastFile);
@@ -270,6 +420,13 @@ static std::wstring EngineStatusText() {
                  g_cfg.loops, L(L_STOP_BIND), stopKey.c_str());
     return b2;
   }
+  if (Clicker_IsRunning()) {
+    FmtMmSs(b, 32, GetTickCount() - Clicker_StartTick());
+    wchar_t b2[128];
+    swprintf_s(b2, L"CLICK %s \u2022 %s: %s", b, L(L_STOP_BIND),
+               FmtHk(g_cfg.playMods, g_cfg.playVk).c_str());
+    return b2;
+  }
   if (!g_lastFile.empty())
     return FileNameOnly(g_lastFile);
   if (!g_events.empty())
@@ -287,6 +444,7 @@ static void Paint() {
   HGDIOBJ old = SelectObject(mem, bm);
   Gdiplus::Graphics g(mem);
   bool acry = g_cfg.theme == THEME_ACRYLIC;
+  g_fadeBg = acry ? SampleAcrylicBg() : ThBg();
   g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
   g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeNone);
   Gdiplus::SolidBrush bg(acry ? GfxAcrylicBg() : GdiCol(ThBg()));
@@ -294,53 +452,183 @@ static void Paint() {
   Gdiplus::Pen border(acry ? Gdiplus::Color(160, 56, 56, 56)
                            : GdiCol(ThBorder()));
   g.DrawRectangle(&border, 0, 0, rc.right - 1, rc.bottom - 1);
+
   int st = g_state.load();
-  for (int i = 0; i < TILES; i++) {
-    int hs = g_pressB == i ? 2 : g_hoverB == i ? 1 : 0;
-    if (!hs)
-      continue;
-    Gdiplus::SolidBrush fill(acry
-                                 ? Gdiplus::Color(hs == 2 ? 90 : 70, 60, 60, 60)
-                                 : GdiCol(hs == 2 ? ThHover2() : ThHover()));
-    RECT r = TileRect(i);
+  bool run = Clicker_IsRunning();
+  bool clicker = ClickerMode();
+  int sy = rc.bottom - STATUS_H;
+  int panelA = (int)(g_panelFade * 255.0f + 0.5f);
+  int extraA = (int)(g_extraH / (float)ClickAreaH() * 255.0f + 0.5f);
+  if (extraA > 255)
+    extraA = 255;
+
+  Gdiplus::SolidBrush gborder(acry ? Gdiplus::Color(255, 48, 48, 48)
+                                   : GdiCol(ThBorder()));
+
+  if (panelA < 128) {
+    for (int i = 0; i < TILES; i++) {
+      int hs = g_pressB == i ? 2 : g_hoverB == i ? 1 : 0;
+      if (!hs)
+        continue;
+      RECT r = TileRect(i);
+      Gdiplus::SolidBrush fill(
+          acry ? Gdiplus::Color(hs == 2 ? 90 : 70, 60, 60, 60)
+               : GdiCol(hs == 2 ? ThHover2() : ThHover()));
+      g.FillRectangle(&fill, (REAL)r.left, (REAL)r.top,
+                      (REAL)(r.right - r.left), (REAL)(r.bottom - r.top));
+    }
+  }
+  if (panelA > 0 && g_hoverRow >= 0) {
+    RECT r = ModeRowRect(g_hoverRow);
+    Gdiplus::SolidBrush fill(acry ? Gdiplus::Color(70, 60, 60, 60)
+                                  : GdiCol(ThHover()));
     g.FillRectangle(&fill, (REAL)r.left, (REAL)r.top, (REAL)(r.right - r.left),
                     (REAL)(r.bottom - r.top));
   }
-  Gdiplus::SolidBrush gborder(acry ? Gdiplus::Color(105, 165, 165, 165)
-                                   : GdiCol(ThBorder()));
-  for (int i = 1; i < TILES; i++)
+  if (clicker && extraA > 200 && g_hoverCell >= 0 && !run) {
+    RECT r = ClickCellRect(g_hoverCell);
+    Gdiplus::SolidBrush fill(acry ? Gdiplus::Color(70, 60, 60, 60)
+                                  : GdiCol(ThHover()));
+    g.FillRectangle(&fill, (REAL)r.left, (REAL)r.top, (REAL)(r.right - r.left),
+                    (REAL)(r.bottom - r.top));
+  }
+
+  for (int i = 1; i < TILES; i++) {
+    if (panelA > 128 && i == 3)
+      continue;
     g.FillRectangle(&gborder, (REAL)(i * TILE_W - 1), (REAL)TB_H, 1.0f,
                     (REAL)TOOL_H);
-  int sy = TB_H + TOOL_H;
+  }
   g.FillRectangle(&gborder, 0.0f, (REAL)TB_H, (REAL)WIN_W, 1.0f);
-  g.FillRectangle(&gborder, 0.0f, (REAL)sy, (REAL)WIN_W, 1.0f);
+  g.FillRectangle(&gborder, 0.0f, (REAL)(TB_H + TOOL_H), (REAL)WIN_W, 1.0f);
   g.FillRectangle(&gborder, (REAL)(WIN_W - 24), (REAL)sy, 1.0f, (REAL)STATUS_H);
   g.FillRectangle(&gborder, 23.0f, (REAL)sy, 1.0f, (REAL)STATUS_H);
-  std::wstring status = DockStatusText();
-  Gdiplus::Font f9(mem, ThFont(8));
+  if (sy != TB_H + TOOL_H)
+    g.FillRectangle(&gborder, 0.0f, (REAL)sy, (REAL)WIN_W, 1.0f);
+
+  if (clicker && extraA > 0) {
+    Gdiplus::GraphicsState ss = g.Save();
+    g.SetClip(Gdiplus::RectF(0, (REAL)(TB_H + TOOL_H), (REAL)WIN_W,
+                             (REAL)(sy - (TB_H + TOOL_H))));
+    int top = TB_H + TOOL_H;
+    g.FillRectangle(&gborder, (REAL)(WIN_W / 2), (REAL)top, 1.0f,
+                    (REAL)CLICK_H);
+    g.FillRectangle(&gborder, 0.0f, (REAL)(top + CFG_ROW_H), (REAL)WIN_W, 1.0f);
+    if (g_cfg.clickType == CLICK_HOLD)
+      g.FillRectangle(&gborder, 0.0f, (REAL)(top + 2 * CFG_ROW_H), (REAL)WIN_W,
+                      1.0f);
+    g.Restore(ss);
+  }
+
+  Gdiplus::Font f8(mem, ThFont(8));
   Gdiplus::SolidBrush txt(GdiCol(ThText()));
   Gdiplus::SolidBrush dim(GdiCol(ThDim()));
   g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
   g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
   g.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
+
   for (int i = 0; i < TILES; i++) {
+    int a = (i == 2 || i == 3) ? 255 - panelA : 255;
+    if (a <= 0)
+      continue;
     RECT r = TileRect(i);
-    wchar_t gl = GLYPH_BTN[i];
-    COLORREF col = ThText();
-    if (i == 2) {
-      if (st == ST_REC)
-        gl = GLYPH_STOP;
-      else {
-        Gdiplus::SolidBrush rd(GdiCol(RecRed()));
-        g.FillEllipse(&rd, (REAL)(r.left + r.right) / 2.0f - 6.5f,
-                      (REAL)(r.top + r.bottom) / 2.0f - 6.5f, 13.0f, 13.0f);
+    REAL cx = (REAL)(r.left + r.right) / 2.0f;
+    REAL cy = (REAL)(r.top + r.bottom) / 2.0f;
+    if (i == 0) {
+      DrawGlyph(mem, g, cx, cy, 16, GLYPH_OPEN, FadeOnBg(ThText(), a), 255);
+    } else if (i == 1) {
+      DrawGlyph(mem, g, cx, cy, 16, (wchar_t)0xE8AB, FadeOnBg(ThAccent(), a),
+                255);
+    } else if (i == 4) {
+      DrawGlyph(mem, g, cx, cy, 16, (wchar_t)0xE713, FadeOnBg(ThText(), a),
+                255);
+    } else if (i == 2) {
+      if (clicker) {
+        DrawGlyph(mem, g, cx, cy, 16, GLYPH_PLAY,
+                  FadeOnBg(run ? ThDim() : PlayBlue(), a), 255);
+      } else if (st == ST_REC) {
+        DrawGlyph(mem, g, cx, cy, 16, GLYPH_STOP, FadeOnBg(ThText(), a), 255);
+      } else {
+        Gdiplus::SolidBrush rd(GdiCol(FadeOnBg(RecRed(), a)));
+        g.FillEllipse(&rd, cx - 6.5f, cy - 6.5f, 13.0f, 13.0f);
+      }
+    } else {
+      if (clicker)
+        DrawGlyph(mem, g, cx, cy, 16, GLYPH_STOP,
+                  FadeOnBg(run ? RecRed() : ThDim(), a), 255);
+      else
+        DrawGlyph(mem, g, cx, cy, 16, st == ST_PLAY ? GLYPH_STOP : GLYPH_PLAY,
+                  FadeOnBg(ThText(), a), 255);
+    }
+  }
+
+  if (panelA > 0) {
+    for (int i = 0; i < 2; i++) {
+      RECT r = ModeRowRect(i);
+      REAL cy = (REAL)(r.top + r.bottom) / 2.0f;
+      DrawGlyph(mem, g, (REAL)r.left + 9, cy, 12,
+                i == 0 ? (wchar_t)0xE765 : (wchar_t)0xE962,
+                FadeOnBg(ThDim(), panelA), 255);
+      std::wstring name = L(i == 0 ? L_MODE_ONTY : L_MODE_CLICKER);
+      Gdiplus::SolidBrush nb(GdiCol(FadeOnBg(ThText(), panelA)));
+      g.DrawString(name.c_str(), -1, &f8,
+                   Gdiplus::RectF((REAL)r.left + 17, (REAL)r.top,
+                                  (REAL)(r.right - r.left - 40),
+                                  (REAL)(r.bottom - r.top)),
+                   &SfVC(), &nb);
+      if (g_cfg.mode == i) {
+        DrawGlyph(mem, g, (REAL)r.right - 11, cy, 10, (wchar_t)0xE73E,
+                  FadeOnBg(ThAccent(), panelA), 255);
+      } else {
+        Gdiplus::Pen ring(GdiCol(FadeOnBg(ThDim(), panelA)), 1.0f);
+        g.DrawEllipse(&ring, (REAL)r.right - 15.5f, cy - 4.5f, 9.0f, 9.0f);
+      }
+    }
+  }
+
+  if (clicker && extraA > 0) {
+    Gdiplus::GraphicsState gs = g.Save();
+    g.SetClip(Gdiplus::RectF(0, (REAL)(TB_H + TOOL_H), (REAL)WIN_W,
+                             (REAL)(sy - (TB_H + TOOL_H))));
+    std::wstring labels[5] = {
+        L(L_CLICK_INTERVAL), L(L_CLICK_TARGET),
+        L(g_cfg.clickTarget == CLICK_TARGET_KEY ? L_CLICK_KEY : L_CLICK_BUTTON),
+        L(L_CLICK_TYPE), L(L_CLICK_HOLD)};
+    std::wstring values[5] = {ClickIntervalText(), ClickTargetText(),
+                              ClickValueText(), ClickTypeText(),
+                              ClickHoldText()};
+    Gdiplus::Font f7(mem, ThFont(7));
+    Gdiplus::SolidBrush lb(GdiCol(ThDim()));
+    Gdiplus::SolidBrush vb(GdiCol(run ? ThDim() : ThText()));
+    int cellCount = g_cfg.clickType == CLICK_HOLD ? 5 : 4;
+    for (int i = 0; i < cellCount; i++) {
+      RECT r = ClickCellRect(i);
+      if (r.top >= sy)
+        break;
+      if (i == 4) {
+        g.DrawString(labels[i].c_str(), -1, &f7,
+                     Gdiplus::RectF((REAL)r.left + 8, (REAL)r.top, 120.0f,
+                                    (REAL)(r.bottom - r.top)),
+                     &SfVC(), &lb);
+        g.DrawString(values[i].c_str(), -1, &f8,
+                     Gdiplus::RectF((REAL)r.left + 8, (REAL)r.top,
+                                    (REAL)(r.right - r.left - 16),
+                                    (REAL)(r.bottom - r.top)),
+                     &SfR(), &vb);
         continue;
       }
-    } else if (i == 3 && st == ST_PLAY)
-      gl = GLYPH_STOP;
-    DrawGlyph(mem, g, (REAL)(r.left + r.right) / 2.0f,
-              (REAL)(r.top + r.bottom) / 2.0f, 16, gl, col);
+      g.DrawString(labels[i].c_str(), -1, &f7,
+                   Gdiplus::RectF((REAL)r.left + 8, (REAL)r.top + 1,
+                                  (REAL)(r.right - r.left - 16), 12.0f),
+                   &SfL(), &lb);
+      g.DrawString(values[i].c_str(), -1, &f8,
+                   Gdiplus::RectF((REAL)r.left + 8, (REAL)r.top + 13,
+                                  (REAL)(r.right - r.left - 16), 15.0f),
+                   &SfL(), &vb);
+    }
+    g.Restore(gs);
   }
+
   RECT rsb = ReSaveBtnRect();
   RECT rbtn = {1, rsb.top, 23, rsb.bottom};
   bool hasRec = !g_events.empty();
@@ -368,8 +656,9 @@ static void Paint() {
               (REAL)(rbtn.top + rbtn.bottom) / 2.0f, 11, (wchar_t)0xE7BA,
               RGB(224, 176, 64));
 
+  std::wstring status = DockStatusText();
   Gdiplus::RectF sBounds;
-  g.MeasureString(status.c_str(), -1, &f9, Gdiplus::PointF(0, 0), &SfVC(),
+  g.MeasureString(status.c_str(), -1, &f8, Gdiplus::PointF(0, 0), &SfVC(),
                   &sBounds);
   REAL maxW = 118.0f;
   REAL textX = 30.0f;
@@ -388,15 +677,17 @@ static void Paint() {
   }
   Gdiplus::GraphicsState gState = g.Save();
   g.SetClip(Gdiplus::RectF(28.0f, (REAL)sy, maxW + 2.0f, (REAL)STATUS_H));
-  Gdiplus::SolidBrush ttxt(
-      GdiCol(st == ST_IDLE ? ThDim() : (st == ST_REC ? RecRed() : PlayBlue())));
-  g.DrawString(status.c_str(), -1, &f9,
+  COLORREF scol = st == ST_REC             ? RecRed()
+                  : (st == ST_PLAY || run) ? PlayBlue()
+                                           : ThDim();
+  Gdiplus::SolidBrush ttxt(GdiCol(scol));
+  g.DrawString(status.c_str(), -1, &f8,
                Gdiplus::RectF(textX, (REAL)(sy + 1), sBounds.Width + 4.0f,
                               (REAL)STATUS_H),
                &SfVC(), &ttxt);
   g.Restore(gState);
 
-  g.DrawString(APP_VERSION, -1, &f9,
+  g.DrawString(APP_VERSION, -1, &f8,
                Gdiplus::RectF(150, (REAL)(sy + 1), 72, (REAL)STATUS_H), &SfR(),
                &dim);
   RECT ub = UpdateBtnRect();
@@ -419,7 +710,6 @@ static void Paint() {
   DeleteDC(mem);
   EndPaint(g_hwnd, &ps);
 }
-
 enum {
   TIP_TILE0 = 200,
   TIP_PIN = 210,
@@ -427,7 +717,9 @@ enum {
   TIP_CLOSE = 212,
   TIP_ICON = 213,
   TIP_UPDATE = 214,
-  TIP_RESAVE = 215
+  TIP_RESAVE = 215,
+  TIP_ROW0 = 220,
+  TIP_CELL0 = 230
 };
 
 static HWND g_tip = nullptr;
@@ -445,19 +737,41 @@ static std::wstring TipFor(UINT id) {
     int st = g_state.load();
     switch (t) {
     case 0:
-      return L(L_OPEN);
+      return L(L_FILE);
     case 1:
-      return L(L_SAVE);
+      return std::wstring(L(L_MODE)) + L": " +
+             L(ClickerMode() ? L_MODE_CLICKER : L_MODE_ONTY);
     case 2:
+      if (ClickerMode())
+        return L(L_CLICK_START);
       return (st == ST_REC ? std::wstring(L(L_STOP)) : std::wstring(L(L_REC))) +
              L"  (" + FmtHk(g_cfg.recordMods, g_cfg.recordVk) + L")";
     case 3:
+      if (ClickerMode())
+        return L(L_CLICK_STOP);
       return (st == ST_PLAY ? std::wstring(L(L_STOP)) + L"  (" +
                                   ActiveStopKeysText() + L")"
                             : std::wstring(L(L_PLAY)) + L"  (" +
                                   FmtHk(g_cfg.playMods, g_cfg.playVk) + L")");
     default:
       return L(L_SETTINGS);
+    }
+  }
+  if (id == TIP_ROW0 || id == TIP_ROW0 + 1)
+    return L(id == TIP_ROW0 ? L_MODE_ONTY : L_MODE_CLICKER);
+  if (id >= TIP_CELL0 && id < TIP_CELL0 + 5) {
+    switch (id - TIP_CELL0) {
+    case 0:
+      return L(L_CLICK_INTERVAL);
+    case 1:
+      return L(L_CLICK_TARGET);
+    case 2:
+      return L(g_cfg.clickTarget == CLICK_TARGET_KEY ? L_CLICK_KEY
+                                                     : L_CLICK_BUTTON);
+    case 3:
+      return L(L_CLICK_TYPE);
+    default:
+      return L(L_CLICK_HOLD);
     }
   }
   switch (id) {
@@ -1081,7 +1395,169 @@ static void AutoSyncInstalledExe() {
   }
 }
 
+static void AppendRecentMenu(HMENU root) {
+  HMENU recM = CreatePopupMenu();
+  if (g_recentFiles.empty()) {
+    AppendMenuW(recM, MF_STRING | MF_GRAYED, 0, L(L_NO_RECENT));
+  } else {
+    for (size_t i = 0; i < g_recentFiles.size(); i++) {
+      std::wstring fname = FileNameOnly(g_recentFiles[i]);
+      AppendMenuW(recM, MF_STRING, IDM_RECENT_0 + (UINT)i, fname.c_str());
+    }
+    AppendMenuW(recM, MF_SEPARATOR, 0, nullptr);
+    AddMI(recM, IDM_RECENT_CLEAR, L(L_CLEAR_RECENT), 0xE74D);
+  }
+  AppendMenuW(root, MF_POPUP, (UINT_PTR)recM, L(L_RECENT_FILES));
+  IconLast(root, 0xE81C);
+}
+
+static void AppendClipboardMenu(HMENU root) {
+  HMENU clipM = CreatePopupMenu();
+  std::wstring copyText = std::wstring(L(L_COPY_CLIPBOARD)) + L"\tCtrl+C";
+  std::wstring pasteText = std::wstring(L(L_PASTE_CLIPBOARD)) + L"\tCtrl+V";
+  AddMI(clipM, IDM_COPY_CLIPBOARD, copyText.c_str(), 0xE8C8);
+  AddMI(clipM, IDM_PASTE_CLIPBOARD, pasteText.c_str(), 0xE77F);
+  AppendMenuW(clipM, MF_SEPARATOR, 0, nullptr);
+  if (!g_lastFile.empty())
+    AddMI(clipM, IDM_CREATE_SHORTCUT, L(L_CREATE_SHORTCUT), 0xE71B);
+  else
+    AppendMenuW(clipM, MF_STRING | MF_GRAYED, IDM_CREATE_SHORTCUT,
+                L(L_CREATE_SHORTCUT));
+  AppendMenuW(root, MF_POPUP, (UINT_PTR)clipM, L(L_CLIPBOARD));
+  IconLast(root, 0xE77F);
+}
+
+static void AppendThemeMenu(HMENU root) {
+  HMENU th = CreatePopupMenu();
+  AppendMenuW(th, MF_STRING | MF_GRAYED, 0, L(L_INTERFACE_THEME));
+  AddCheck(th, IDM_TH0, L(L_TH_DARK), g_cfg.theme == 0);
+  AddCheck(th, IDM_TH1, L(L_TH_LIGHT), g_cfg.theme == 1);
+  AddCheck(th, IDM_TH2, L(L_TH_ACRYLIC), g_cfg.theme == 2);
+  AppendMenuW(th, MF_SEPARATOR, 0, nullptr);
+  AppendMenuW(th, MF_STRING | MF_GRAYED, 0, L(L_TRAY_ICON));
+  AddCheck(th, IDM_TRI0, L(L_TRAY_AUTO), g_cfg.trayIcon == 0);
+  AddCheck(th, IDM_TRI1, L(L_TH_DARK), g_cfg.trayIcon == 1);
+  AddCheck(th, IDM_TRI2, L(L_TH_LIGHT), g_cfg.trayIcon == 2);
+  AppendMenuW(th, MF_SEPARATOR, 0, nullptr);
+  AppendMenuW(th, MF_STRING | MF_GRAYED, 0, L(L_UI_ICON));
+  AddCheck(th, IDM_UI0, L(L_TRAY_AUTO), g_cfg.uiIcon == 0);
+  AddCheck(th, IDM_UI1, L(L_TH_DARK), g_cfg.uiIcon == 1);
+  AddCheck(th, IDM_UI2, L(L_TH_LIGHT), g_cfg.uiIcon == 2);
+  AppendMenuW(root, MF_POPUP, (UINT_PTR)th, L(L_THEME));
+  IconLast(root, 0xE727);
+}
+
+static void AppendLangMenu(HMENU root) {
+  HMENU lg = CreatePopupMenu();
+  AddCheck(lg, IDM_LENG, L(L_LANG_EN), g_cfg.lang == 1);
+  AddCheck(lg, IDM_LENRU, L(L_LANG_RU), g_cfg.lang == 2);
+  AddCheck(lg, IDM_LENZH, L(L_LANG_ZH), g_cfg.lang == 3);
+  AppendMenuW(lg, MF_SEPARATOR, 0, nullptr);
+  AddMI(lg, IDM_LENIMP, L(L_LANG_IMPORT), 0xE896);
+  AddMI(lg, IDM_LENTR, L(L_LANG_TRANSLATE), 0xE8A1);
+  AppendMenuW(root, MF_POPUP, (UINT_PTR)lg, L(L_LANG));
+  IconLast(root, 0xE774);
+}
+
+static void AppendStatusbarMenu(HMENU root) {
+  HMENU sb = CreatePopupMenu();
+  AddCheck(sb, IDM_SB_SHOW, L(L_SB_ENABLE), g_cfg.statusbarShow != 0);
+  AppendMenuW(sb, MF_SEPARATOR, 0, nullptr);
+  AddCheck(sb, IDM_SB_TOP, L(L_SB_TOP), g_cfg.statusbarTop != 0);
+  AddCheck(sb, IDM_SB_BOTTOM, L(L_SB_BOTTOM), g_cfg.statusbarTop == 0);
+  AppendMenuW(sb, MF_SEPARATOR, 0, nullptr);
+  AddCheck(sb, IDM_SB_FOLLOW, L(L_SB_FOLLOW_MONITOR),
+           g_cfg.statusbarFollowCursor != 0);
+  AppendMenuW(root, MF_POPUP, (UINT_PTR)sb, L(L_STATUSBAR));
+  IconLast(root, 0xEC42);
+}
+
+static void AppendBottomMenu(HMENU root) {
+  if (Update_Found())
+    AddMI(root, IDM_UPDATE, L(L_UPDATE_AVAIL), 0xE777);
+  AddMI(root, IDM_ABOUT, L(L_ABOUT), 0xE946);
+  AddMI(root, IDM_DONATE, L(L_DONATE), 0xEB51);
+  AddMI(root, IDM_EXIT, L(L_EXIT), 0xE711);
+}
+
+static void BuildClickerMenu(HMENU root) {
+  bool run = Clicker_IsRunning();
+  UINT cmd = run ? IDM_CLICK_STOP : IDM_CLICK_START;
+  AppendMenuW(root, MF_STRING, cmd, L(run ? L_CLICK_STOP : L_CLICK_START));
+  GfxMenuGlyph(root, cmd, run ? GLYPH_STOP : GLYPH_PLAY, g_menuIcon);
+  AppendMenuW(root, MF_SEPARATOR, 0, nullptr);
+
+  wchar_t buf[96];
+  swprintf_s(buf, L"%s: %lld %s...", L(L_CLICK_INTERVAL), g_cfg.clickInterval,
+             L(L_MS));
+  AddMI(root, IDM_CLICK_INTERVAL, buf, 0xE916);
+
+  HMENU tgt = CreatePopupMenu();
+  AddCheck(tgt, IDM_CLICK_TARGET_MOUSE, L(L_CLICK_MOUSE),
+           g_cfg.clickTarget == CLICK_TARGET_MOUSE);
+  AddCheck(tgt, IDM_CLICK_TARGET_KEY, L(L_CLICK_KEYBOARD),
+           g_cfg.clickTarget == CLICK_TARGET_KEY);
+  AppendMenuW(root, MF_POPUP, (UINT_PTR)tgt, L(L_CLICK_TARGET));
+  IconLast(root, g_cfg.clickTarget == CLICK_TARGET_KEY ? 0xE765 : 0xE962);
+
+  if (g_cfg.clickTarget == CLICK_TARGET_MOUSE) {
+    HMENU bm = CreatePopupMenu();
+    AddCheck(bm, IDM_CLICK_BTN_LEFT, L(L_CLICK_LEFT),
+             g_cfg.clickButton == CLICK_BUTTON_LEFT);
+    AddCheck(bm, IDM_CLICK_BTN_RIGHT, L(L_CLICK_RIGHT),
+             g_cfg.clickButton == CLICK_BUTTON_RIGHT);
+    AddCheck(bm, IDM_CLICK_BTN_MIDDLE, L(L_CLICK_MIDDLE),
+             g_cfg.clickButton == CLICK_BUTTON_MIDDLE);
+    AddCheck(bm, IDM_CLICK_BTN_X1, L"X1", g_cfg.clickButton == CLICK_BUTTON_X1);
+    AddCheck(bm, IDM_CLICK_BTN_X2, L"X2", g_cfg.clickButton == CLICK_BUTTON_X2);
+    AppendMenuW(root, MF_POPUP, (UINT_PTR)bm, L(L_CLICK_BUTTON));
+    IconLast(root, 0xE962);
+  } else {
+    std::wstring key =
+        std::wstring(L(L_CLICK_KEY)) + L": " + ClickKeyText() + L"...";
+    AddMI(root, IDM_CLICK_KEY, key.c_str(), 0xE765);
+  }
+
+  HMENU tm = CreatePopupMenu();
+  AppendMenuW(tm, MF_STRING, IDM_CLICK_TYPE1, L(L_CLICK_SINGLE));
+  AppendMenuW(tm, MF_STRING, IDM_CLICK_TYPE2, L(L_CLICK_DOUBLE));
+  AppendMenuW(tm, MF_STRING, IDM_CLICK_TYPE3, L(L_CLICK_HOLD));
+  GfxMenuGlyph(tm, IDM_CLICK_TYPE1, 0xE8B0,
+               g_cfg.clickType == 0 ? ThAccent() : g_menuIcon);
+  GfxMenuGlyph(tm, IDM_CLICK_TYPE2, 0xE7C9,
+               g_cfg.clickType == 1 ? ThAccent() : g_menuIcon);
+  GfxMenuGlyph(tm, IDM_CLICK_TYPE3, 0xE769,
+               g_cfg.clickType == 2 ? ThAccent() : g_menuIcon);
+  AppendMenuW(root, MF_POPUP, (UINT_PTR)tm, L(L_CLICK_TYPE));
+  IconLast(root, 0xE762);
+  if (g_cfg.clickType == CLICK_HOLD) {
+    wchar_t hb[96];
+    swprintf_s(hb, L"%s: %d %s...", L(L_CLICK_HOLD), g_cfg.clickHold, L(L_MS));
+    AddMI(root, IDM_CLICK_HOLD, hb, 0xE769);
+  }
+  HMENU hk = CreatePopupMenu();
+  std::wstring hkItem = std::wstring(L(L_HK_CLICKER)) + L":   " +
+                        FmtHk(g_cfg.playMods, g_cfg.playVk);
+  AddMI(hk, IDM_HKCLICK, hkItem.c_str(), 0xE70F);
+  AppendMenuW(root, MF_POPUP, (UINT_PTR)hk, L(L_HOTKEYS));
+  IconLast(root, 0xE765);
+  AppendMenuW(root, MF_SEPARATOR, 0, nullptr);
+
+  AppendThemeMenu(root);
+  AppendLangMenu(root);
+  AppendStatusbarMenu(root);
+  AddCheckWithIcon(root, IDM_TOPMOST, L(L_TOPMOST), g_cfg.topmost != 0, 0xE718);
+  AddCheckWithIcon(root, IDM_AUTOMINIMIZE, L(L_AUTOMINIMIZE),
+                   g_cfg.autoMinimize != 0, 0xE921);
+  AppendMenuW(root, MF_SEPARATOR, 0, nullptr);
+  AppendBottomMenu(root);
+}
+
 static void BuildMenu(HMENU root) {
+  if (ClickerMode()) {
+    BuildClickerMenu(root);
+    return;
+  }
   int st = g_state.load();
 
   std::wstring recHk = FmtHk(g_cfg.recordMods, g_cfg.recordVk);
@@ -1105,34 +1581,8 @@ static void BuildMenu(HMENU root) {
   std::wstring saveText = std::wstring(L(L_SAVE)) + L"\tCtrl+S";
   AddMI(root, IDM_OPEN, openText.c_str(), 0xE8E5);
   AddMI(root, IDM_SAVE, saveText.c_str(), 0xE74E);
-
-  HMENU recM = CreatePopupMenu();
-  if (g_recentFiles.empty()) {
-    AppendMenuW(recM, MF_STRING | MF_GRAYED, 0, L(L_NO_RECENT));
-  } else {
-    for (size_t i = 0; i < g_recentFiles.size(); i++) {
-      std::wstring fname = FileNameOnly(g_recentFiles[i]);
-      AppendMenuW(recM, MF_STRING, IDM_RECENT_0 + (UINT)i, fname.c_str());
-    }
-    AppendMenuW(recM, MF_SEPARATOR, 0, nullptr);
-    AddMI(recM, IDM_RECENT_CLEAR, L(L_CLEAR_RECENT), 0xE74D);
-  }
-  AppendMenuW(root, MF_POPUP, (UINT_PTR)recM, L(L_RECENT_FILES));
-  IconLast(root, 0xE81C);
-
-  HMENU clipM = CreatePopupMenu();
-  std::wstring copyText = std::wstring(L(L_COPY_CLIPBOARD)) + L"\tCtrl+C";
-  std::wstring pasteText = std::wstring(L(L_PASTE_CLIPBOARD)) + L"\tCtrl+V";
-  AddMI(clipM, IDM_COPY_CLIPBOARD, copyText.c_str(), 0xE8C8);
-  AddMI(clipM, IDM_PASTE_CLIPBOARD, pasteText.c_str(), 0xE77F);
-  AppendMenuW(clipM, MF_SEPARATOR, 0, nullptr);
-  if (!g_lastFile.empty())
-    AddMI(clipM, IDM_CREATE_SHORTCUT, L(L_CREATE_SHORTCUT), 0xE71B);
-  else
-    AppendMenuW(clipM, MF_STRING | MF_GRAYED, IDM_CREATE_SHORTCUT,
-                L(L_CREATE_SHORTCUT));
-  AppendMenuW(root, MF_POPUP, (UINT_PTR)clipM, L(L_CLIPBOARD));
-  IconLast(root, 0xE77F);
+  AppendRecentMenu(root);
+  AppendClipboardMenu(root);
   AppendMenuW(root, MF_SEPARATOR, 0, nullptr);
 
   HMENU sp = CreatePopupMenu();
@@ -1188,34 +1638,8 @@ static void BuildMenu(HMENU root) {
   AppendMenuW(root, MF_POPUP, (UINT_PTR)hk, L(L_HOTKEYS));
   IconLast(root, 0xE765);
 
-  HMENU th = CreatePopupMenu();
-  AppendMenuW(th, MF_STRING | MF_GRAYED, 0, L(L_INTERFACE_THEME));
-  AddCheck(th, IDM_TH0, L(L_TH_DARK), g_cfg.theme == 0);
-  AddCheck(th, IDM_TH1, L(L_TH_LIGHT), g_cfg.theme == 1);
-  AddCheck(th, IDM_TH2, L(L_TH_ACRYLIC), g_cfg.theme == 2);
-  AppendMenuW(th, MF_SEPARATOR, 0, nullptr);
-  AppendMenuW(th, MF_STRING | MF_GRAYED, 0, L(L_TRAY_ICON));
-  AddCheck(th, IDM_TRI0, L(L_TRAY_AUTO), g_cfg.trayIcon == 0);
-  AddCheck(th, IDM_TRI1, L(L_TH_DARK), g_cfg.trayIcon == 1);
-  AddCheck(th, IDM_TRI2, L(L_TH_LIGHT), g_cfg.trayIcon == 2);
-  AppendMenuW(th, MF_SEPARATOR, 0, nullptr);
-  AppendMenuW(th, MF_STRING | MF_GRAYED, 0, L(L_UI_ICON));
-  AddCheck(th, IDM_UI0, L(L_TRAY_AUTO), g_cfg.uiIcon == 0);
-  AddCheck(th, IDM_UI1, L(L_TH_DARK), g_cfg.uiIcon == 1);
-  AddCheck(th, IDM_UI2, L(L_TH_LIGHT), g_cfg.uiIcon == 2);
-  AppendMenuW(root, MF_POPUP, (UINT_PTR)th, L(L_THEME));
-  IconLast(root, 0xE727);
-
-  HMENU sb = CreatePopupMenu();
-  AddCheck(sb, IDM_SB_SHOW, L(L_SB_ENABLE), g_cfg.statusbarShow != 0);
-  AppendMenuW(sb, MF_SEPARATOR, 0, nullptr);
-  AddCheck(sb, IDM_SB_TOP, L(L_SB_TOP), g_cfg.statusbarTop != 0);
-  AddCheck(sb, IDM_SB_BOTTOM, L(L_SB_BOTTOM), g_cfg.statusbarTop == 0);
-  AppendMenuW(sb, MF_SEPARATOR, 0, nullptr);
-  AddCheck(sb, IDM_SB_FOLLOW, L(L_SB_FOLLOW_MONITOR),
-           g_cfg.statusbarFollowCursor != 0);
-  AppendMenuW(root, MF_POPUP, (UINT_PTR)sb, L(L_STATUSBAR));
-  IconLast(root, 0xEC42);
+  AppendThemeMenu(root);
+  AppendStatusbarMenu(root);
 
   AddCheckWithIcon(root, IDM_AUTOMINIMIZE, L(L_AUTOMINIMIZE),
                    g_cfg.autoMinimize != 0, 0xE921);
@@ -1226,23 +1650,51 @@ static void BuildMenu(HMENU root) {
   else
     AddMI(root, IDM_INSTALL, L(L_INSTALL), 0xE896);
 
-  HMENU lg = CreatePopupMenu();
-  AddCheck(lg, IDM_LENG, L(L_LANG_EN), g_cfg.lang == 1);
-  AddCheck(lg, IDM_LENRU, L(L_LANG_RU), g_cfg.lang == 2);
-  AddCheck(lg, IDM_LENZH, L(L_LANG_ZH), g_cfg.lang == 3);
-  AppendMenuW(lg, MF_SEPARATOR, 0, nullptr);
-  AddMI(lg, IDM_LENIMP, L(L_LANG_IMPORT), 0xE896);
-  AddMI(lg, IDM_LENTR, L(L_LANG_TRANSLATE), 0xE8A1);
-  AppendMenuW(root, MF_POPUP, (UINT_PTR)lg, L(L_LANG));
-  IconLast(root, 0xE774);
+  AppendLangMenu(root);
   AppendMenuW(root, MF_SEPARATOR, 0, nullptr);
+  AppendBottomMenu(root);
+}
 
-  if (Update_Found()) {
-    AddMI(root, IDM_UPDATE, L(L_UPDATE_AVAIL), 0xE777);
+static void ShowFileMenu() {
+  GfxMenuTheme();
+  g_menuIcon = MenuIconColor();
+  HMENU m = CreatePopupMenu();
+
+  std::wstring title;
+  if (!g_lastFile.empty())
+    title = FileNameOnly(g_lastFile);
+  else
+    title = L(g_events.empty() ? L_ST_NOTHING : L_NEWMACRO);
+  if (g_dirty && !g_events.empty())
+    title += L" *";
+  AppendMenuW(m, MF_STRING | MF_GRAYED, 0, title.c_str());
+
+  if (!g_events.empty()) {
+    unsigned long long total = 0;
+    for (const auto &e : g_events)
+      total += e.delay;
+    if (total > 0xFFFFFFFFull)
+      total = 0xFFFFFFFFull;
+    wchar_t dur[32];
+    FmtMmSs(dur, 32, (DWORD)total);
+    wchar_t info[96];
+    swprintf_s(info, L"%s: %d  %s", L(L_EVENTS), (int)g_events.size(), dur);
+    AppendMenuW(m, MF_STRING | MF_GRAYED, 0, info);
   }
-  AddMI(root, IDM_ABOUT, L(L_ABOUT), 0xE946);
-  AddMI(root, IDM_DONATE, L(L_DONATE), 0xEB51);
-  AddMI(root, IDM_EXIT, L(L_EXIT), 0xE711);
+
+  AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
+  AddMI(m, IDM_OPEN, L(L_OPEN), 0xE8E5);
+  AddMI(m, IDM_SAVE_CURRENT, L(L_SAVE), 0xE74E);
+  AddMI(m, IDM_SAVE, L(L_SAVE_AS), 0xE792);
+  AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
+  AppendRecentMenu(m);
+  AppendClipboardMenu(m);
+
+  POINT p;
+  GetCursorPos(&p);
+  SetForegroundWindow(g_hwnd);
+  TrackPopupMenu(m, TPM_RIGHTBUTTON, p.x, p.y, 0, g_hwnd, nullptr);
+  DestroyMenu(m);
 }
 
 static void TrackMenu() {
@@ -1255,6 +1707,200 @@ static void TrackMenu() {
   SetForegroundWindow(g_hwnd);
   TrackPopupMenu(m, TPM_RIGHTBUTTON, p.x, p.y, 0, g_hwnd, nullptr);
   DestroyMenu(m);
+}
+
+static void SetWindowHeight(int h) {
+  if (ClientH() == h)
+    return;
+  SetWindowPos(g_hwnd, nullptr, 0, 0, WIN_W, h,
+               SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW);
+  InvalidateRect(g_hwnd, nullptr, FALSE);
+  UpdateWindow(g_hwnd);
+  if (g_cfg.theme == THEME_ACRYLIC) {
+    typedef HRESULT(WINAPI * FnDwmFlush)();
+    static FnDwmFlush flush = nullptr;
+    static bool init = false;
+    if (!init) {
+      init = true;
+      HMODULE d = LoadLibraryW(L"dwmapi.dll");
+      if (d)
+        flush = (FnDwmFlush)GetProcAddress(d, "DwmFlush");
+    }
+    if (flush)
+      flush();
+  }
+}
+
+static void EnsureUiTimer() {
+  TipSet(0);
+  TipHideNow();
+  if (g_uiTick)
+    return;
+  g_uiTick = GetTickCount();
+  SetTimer(g_hwnd, 16, 15, nullptr);
+}
+
+static void SnapUi() {
+  g_panelFade = g_panelTarget;
+  g_extraH = g_extraTarget;
+  if (!g_inMove)
+    SetWindowHeight(WIN_H + (int)(g_extraH + 0.5f));
+  KillTimer(g_hwnd, 16);
+  g_uiTick = 0;
+  InvalidateRect(g_hwnd, nullptr, FALSE);
+}
+
+static void SetMode(int mode) {
+  mode = mode ? 1 : 0;
+  if (mode == g_cfg.mode)
+    return;
+  int st = g_state.load();
+  if (st == ST_REC)
+    Engine_RecordStop();
+  else if (st == ST_PLAY)
+    Engine_PlayStop();
+  if (Clicker_IsRunning())
+    Clicker_Stop();
+  g_cfg.mode = mode;
+  g_panelTarget = 0.0f;
+  g_panelFade = 0.0f;
+  g_extraTarget = ClickerMode() ? (float)ClickAreaH() : 0.0f;
+  ConfigSave();
+  EnsureUiTimer();
+  InvalidateRect(g_hwnd, nullptr, FALSE);
+}
+
+static void ToggleModePanel() {
+  g_panelTarget = g_panelTarget > 0.5f ? 0.0f : 1.0f;
+  EnsureUiTimer();
+}
+
+static void StartClicker() {
+  if (!ClickerMode() || Clicker_IsRunning() || g_state.load() != ST_IDLE)
+    return;
+  if (g_cfg.clickTarget == CLICK_TARGET_KEY && !g_cfg.clickKeyVk) {
+    StatusShow(L(L_CLICK_NEEDKEY), 2500);
+    return;
+  }
+  ClickerParams p;
+  p.target = g_cfg.clickTarget;
+  p.interval = g_cfg.clickInterval;
+  p.button = g_cfg.clickButton;
+  p.type = g_cfg.clickType;
+  p.hold = g_cfg.clickHold;
+  p.keyMods = g_cfg.clickKeyMods;
+  p.keyVk = g_cfg.clickKeyVk;
+  Clicker_Start(p);
+  if (g_cfg.autoMinimize)
+    ShowWindow(g_hwnd, SW_HIDE);
+  InvalidateRect(g_hwnd, nullptr, FALSE);
+}
+
+static void StopClicker(bool userAction) {
+  if (!Clicker_IsRunning())
+    return;
+  Clicker_Stop();
+  if (userAction) {
+    if (g_cfg.autoMinimize) {
+      ShowWindow(g_hwnd, SW_SHOW);
+      SetForegroundWindow(g_hwnd);
+    }
+    StatusShow(L(L_CLICK_STOPPED), 2000);
+  }
+  InvalidateRect(g_hwnd, nullptr, FALSE);
+}
+
+static void ClickCellAction(int i) {
+  if (!ClickerMode() || g_extraH < CLICK_H * 0.5f || Clicker_IsRunning())
+    return;
+  if (i == 4 && g_cfg.clickType != CLICK_HOLD)
+    return;
+  switch (i) {
+  case 0: {
+    long long v = g_cfg.clickInterval;
+    if (InputDialog64(L(L_Q_INTERVAL), v, 1, 999999999999LL, v)) {
+      g_cfg.clickInterval = v;
+      ConfigSave();
+    }
+    break;
+  }
+  case 1:
+    g_cfg.clickTarget = g_cfg.clickTarget == CLICK_TARGET_MOUSE
+                            ? CLICK_TARGET_KEY
+                            : CLICK_TARGET_MOUSE;
+    ConfigSave();
+    break;
+  case 2:
+    if (g_cfg.clickTarget == CLICK_TARGET_MOUSE) {
+      g_cfg.clickButton = (g_cfg.clickButton + 1) % 5;
+      ConfigSave();
+    } else {
+      int mods = 0, vk = 0;
+      if (UiKeyCapture(g_hwnd, L(L_KEY_PRESS), mods, vk)) {
+        g_cfg.clickKeyMods = mods;
+        g_cfg.clickKeyVk = vk;
+        ConfigSave();
+      }
+    }
+    break;
+  case 3:
+    g_cfg.clickType = (g_cfg.clickType + 1) % 3;
+    ConfigSave();
+    g_extraTarget = (float)ClickAreaH();
+    EnsureUiTimer();
+    break;
+  case 4: {
+    int v = g_cfg.clickHold;
+    if (InputDialog(L(L_Q_HOLD), v, 1, 60000, v)) {
+      g_cfg.clickHold = v;
+      ConfigSave();
+    }
+    break;
+  }
+  }
+  InvalidateRect(g_hwnd, nullptr, FALSE);
+}
+
+static void UiAnimateTick() {
+  DWORD now = GetTickCount();
+  float dt = now >= g_uiTick ? (float)(now - g_uiTick) / 1000.0f : 0.0f;
+  g_uiTick = now;
+  if (dt > 0.1f)
+    dt = 0.1f;
+  float kp = dt * 18.0f;
+  if (kp > 1.0f)
+    kp = 1.0f;
+  float kh = dt * 20.0f;
+  if (kh > 1.0f)
+    kh = 1.0f;
+  bool active = false, resized = false;
+  if (g_panelFade != g_panelTarget) {
+    g_panelFade += (g_panelTarget - g_panelFade) * kp;
+    if (g_panelFade < 0.0f)
+      g_panelFade = 0.0f;
+    if (g_panelFade > 1.0f)
+      g_panelFade = 1.0f;
+    if ((g_panelTarget - g_panelFade) * (g_panelTarget - g_panelFade) < 0.0001f)
+      g_panelFade = g_panelTarget;
+    active = true;
+  }
+  if (!g_inMove && g_extraH != g_extraTarget) {
+    g_extraH += (g_extraTarget - g_extraH) * kh;
+    if ((g_extraTarget - g_extraH) * (g_extraTarget - g_extraH) < 0.01f)
+      g_extraH = g_extraTarget;
+    int nh = WIN_H + (int)(g_extraH + 0.5f);
+    if (ClientH() != nh) {
+      SetWindowHeight(nh);
+      resized = true;
+    }
+    active = true;
+  }
+  if (!resized)
+    InvalidateRect(g_hwnd, nullptr, FALSE);
+  if (!active) {
+    KillTimer(g_hwnd, 16);
+    g_uiTick = 0;
+  }
 }
 
 static HICON TrayIconMake() {
@@ -1326,7 +1972,8 @@ static void FmtMmSs(wchar_t *b, size_t n, DWORD ms) {
 static void StatusTick() {
   std::wstring s = EngineStatusText();
   int st = g_state.load();
-  if (st == ST_REC || st == ST_PLAY) {
+  bool click = Clicker_IsRunning();
+  if (st == ST_REC || st == ST_PLAY || click) {
     if (StatusIsPersistent())
       StatusUpdate(s.c_str());
     else if (!StatusVisible())
@@ -1337,7 +1984,7 @@ static void StatusTick() {
       StatusHide();
     InvalidateRect(g_hwnd, nullptr, FALSE);
   }
-  int trayState = st;
+  int trayState = click ? ST_PLAY : st;
   if (trayState != g_trayState) {
     g_trayState = trayState;
     TrayIconRefresh();
@@ -1370,6 +2017,8 @@ static void HotkeyRegisterAll(HWND hwnd) {
 static void DoCmd(int id) {
   switch (id) {
   case IDM_REC:
+    if (ClickerMode())
+      break;
     if (g_state.load() == ST_REC) {
       Engine_RecordStop();
       g_lastFile.clear();
@@ -1390,6 +2039,13 @@ static void DoCmd(int id) {
     }
     break;
   case IDM_PLAY:
+    if (ClickerMode()) {
+      if (Clicker_IsRunning())
+        StopClicker(true);
+      else
+        StartClicker();
+      break;
+    }
     if (g_state.load() == ST_PLAY)
       Engine_PlayStop();
     else if (g_state.load() == ST_REC)
@@ -1399,6 +2055,136 @@ static void DoCmd(int id) {
         if (g_cfg.autoMinimize)
           ShowWindow(g_hwnd, SW_HIDE);
       }
+    }
+    break;
+  case IDM_CLICK_START:
+    StartClicker();
+    break;
+  case IDM_CLICK_STOP:
+    StopClicker(true);
+    break;
+  case IDM_CLICK_INTERVAL: {
+    if (Clicker_IsRunning())
+      break;
+    long long v = g_cfg.clickInterval;
+    if (InputDialog64(L(L_Q_INTERVAL), v, 1, 999999999999LL, v)) {
+      g_cfg.clickInterval = v;
+      ConfigSave();
+      InvalidateRect(g_hwnd, nullptr, FALSE);
+    }
+    break;
+  }
+  case IDM_CLICK_TARGET_MOUSE:
+    g_cfg.clickTarget = CLICK_TARGET_MOUSE;
+    ConfigSave();
+    InvalidateRect(g_hwnd, nullptr, FALSE);
+    break;
+  case IDM_CLICK_TARGET_KEY:
+    g_cfg.clickTarget = CLICK_TARGET_KEY;
+    ConfigSave();
+    InvalidateRect(g_hwnd, nullptr, FALSE);
+    break;
+  case IDM_CLICK_BTN_LEFT:
+    g_cfg.clickButton = CLICK_BUTTON_LEFT;
+    ConfigSave();
+    InvalidateRect(g_hwnd, nullptr, FALSE);
+    break;
+  case IDM_CLICK_BTN_RIGHT:
+    g_cfg.clickButton = CLICK_BUTTON_RIGHT;
+    ConfigSave();
+    InvalidateRect(g_hwnd, nullptr, FALSE);
+    break;
+  case IDM_CLICK_BTN_MIDDLE:
+    g_cfg.clickButton = CLICK_BUTTON_MIDDLE;
+    ConfigSave();
+    InvalidateRect(g_hwnd, nullptr, FALSE);
+    break;
+  case IDM_CLICK_BTN_X1:
+    g_cfg.clickButton = CLICK_BUTTON_X1;
+    ConfigSave();
+    InvalidateRect(g_hwnd, nullptr, FALSE);
+    break;
+  case IDM_CLICK_BTN_X2:
+    g_cfg.clickButton = CLICK_BUTTON_X2;
+    ConfigSave();
+    InvalidateRect(g_hwnd, nullptr, FALSE);
+    break;
+  case IDM_CLICK_TYPE1:
+    g_cfg.clickType = 0;
+    ConfigSave();
+    g_extraTarget = (float)ClickAreaH();
+    EnsureUiTimer();
+    InvalidateRect(g_hwnd, nullptr, FALSE);
+    break;
+  case IDM_CLICK_TYPE2:
+    g_cfg.clickType = 1;
+    ConfigSave();
+    g_extraTarget = (float)ClickAreaH();
+    EnsureUiTimer();
+    InvalidateRect(g_hwnd, nullptr, FALSE);
+    break;
+  case IDM_CLICK_TYPE3:
+    g_cfg.clickType = 2;
+    ConfigSave();
+    g_extraTarget = (float)ClickAreaH();
+    EnsureUiTimer();
+    InvalidateRect(g_hwnd, nullptr, FALSE);
+    break;
+  case IDM_CLICK_HOLD: {
+    if (Clicker_IsRunning())
+      break;
+    int v = g_cfg.clickHold;
+    if (InputDialog(L(L_Q_HOLD), v, 1, 60000, v)) {
+      g_cfg.clickHold = v;
+      ConfigSave();
+      InvalidateRect(g_hwnd, nullptr, FALSE);
+    }
+    break;
+  }
+  case IDM_CLICK_KEY: {
+    if (Clicker_IsRunning())
+      break;
+    int mods = 0, vk = 0;
+    if (UiKeyCapture(g_hwnd, L(L_KEY_PRESS), mods, vk)) {
+      g_cfg.clickKeyMods = mods;
+      g_cfg.clickKeyVk = vk;
+      g_cfg.clickTarget = CLICK_TARGET_KEY;
+      ConfigSave();
+      InvalidateRect(g_hwnd, nullptr, FALSE);
+    }
+    break;
+  }
+  case IDM_HKCLICK: {
+    int mods = 0, vk = 0;
+    if (UiHotkeyCaptureNamed(g_hwnd, L(L_HK_CLICKER), mods, vk)) {
+      if (mods == g_cfg.recordMods && vk == g_cfg.recordVk) {
+        UiMessage(g_hwnd, L(L_ST_CONFLICT), L(L_APPNAME), UI_OK, UI_ICON_ERROR);
+        break;
+      }
+      g_cfg.playMods = mods;
+      g_cfg.playVk = vk;
+      ConfigSave();
+      HotkeyRegisterAll(g_hwnd);
+    }
+    break;
+  }
+  case IDM_SAVE_CURRENT:
+    if (g_state.load() != ST_IDLE)
+      break;
+    if (g_events.empty()) {
+      StatusShow(L(L_ST_NOTHING), 2500);
+      break;
+    }
+    if (g_lastFile.empty()) {
+      DoCmd(IDM_SAVE);
+      break;
+    }
+    if (Engine_Save(g_lastFile.c_str())) {
+      g_dirty = false;
+      RecentAdd(g_lastFile);
+      StatusShow(L(L_ST_SAVED), 2500);
+    } else {
+      StatusShow(L(L_SAVEFAIL), 3000);
     }
     break;
   case IDM_OPEN: {
@@ -1856,11 +2642,34 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
   }
   case WM_MOUSEMOVE: {
     POINT pt = {GET_X_LPARAM(l), GET_Y_LPARAM(l)};
-    int nb = -1, nt = 0;
-    for (int i = 0; i < TILES; i++) {
-      RECT r = TileRect(i);
-      if (PtInRect(&r, pt))
-        nb = i;
+    int nb = -1, nr = -1, nc = -1, nt = 0;
+    bool panel = g_panelTarget > 0.5f;
+    if (panel) {
+      for (int i = 0; i < 2; i++) {
+        RECT r = ModeRowRect(i);
+        if (PtInRect(&r, pt))
+          nr = i;
+      }
+    }
+    if (nr < 0) {
+      for (int i = 0; i < TILES; i++) {
+        if (panel && (i == 2 || i == 3))
+          continue;
+        RECT r = TileRect(i);
+        if (PtInRect(&r, pt))
+          nb = i;
+      }
+    }
+    if (ClickerMode() && g_extraH > CLICK_H * 0.5f) {
+      int sy = StatusY();
+      int cellCount = g_cfg.clickType == CLICK_HOLD ? 5 : 4;
+      if (pt.y < sy) {
+        for (int i = 0; i < cellCount; i++) {
+          RECT r = ClickCellRect(i);
+          if (PtInRect(&r, pt))
+            nc = i;
+        }
+      }
     }
     RECT rmin = GfxMinRect(WIN_W), rclose = GfxCloseRect(WIN_W),
          rpin = GfxPinRect(WIN_W);
@@ -1878,50 +2687,64 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
     if (PtInRect(&rsb, pt) && g_state.load() == ST_IDLE && !g_events.empty())
       nt = 6;
     UINT tid = 0;
-    switch (nt) {
-    case 1:
-      tid = TIP_MIN;
-      break;
-    case 2:
-      tid = TIP_CLOSE;
-      break;
-    case 3:
-      tid = TIP_PIN;
-      break;
-    case 4:
-      tid = TIP_ICON;
-      break;
-    case 5:
-      tid = TIP_UPDATE;
-      break;
-    case 6:
-      tid = TIP_RESAVE;
-      break;
-    default:
-      if (nb >= 0)
-        tid = TIP_TILE0 + nb;
-      break;
+    if (nr >= 0)
+      tid = TIP_ROW0 + nr;
+    else if (nc >= 0)
+      tid = TIP_CELL0 + nc;
+    else {
+      switch (nt) {
+      case 1:
+        tid = TIP_MIN;
+        break;
+      case 2:
+        tid = TIP_CLOSE;
+        break;
+      case 3:
+        tid = TIP_PIN;
+        break;
+      case 4:
+        tid = TIP_ICON;
+        break;
+      case 5:
+        tid = TIP_UPDATE;
+        break;
+      case 6:
+        tid = TIP_RESAVE;
+        break;
+      default:
+        if (nb >= 0)
+          tid = TIP_TILE0 + nb;
+        break;
+      }
     }
     TipSet(tid);
-    if (nb != g_hoverB || nt != g_hoverT) {
+    if (nb != g_hoverB || nr != g_hoverRow || nc != g_hoverCell ||
+        nt != g_hoverT) {
       g_hoverB = nb;
+      g_hoverRow = nr;
+      g_hoverCell = nc;
       g_hoverT = nt;
       InvalidateRect(hwnd, nullptr, FALSE);
     }
-    SetCursor(nt >= 4 ? LoadCursorW(nullptr, IDC_HAND)
-                      : LoadCursorW(nullptr, IDC_ARROW));
+    SetCursor((nt >= 4 || nb >= 0 || nr >= 0 || nc >= 0)
+                  ? LoadCursorW(nullptr, IDC_HAND)
+                  : LoadCursorW(nullptr, IDC_ARROW));
     TRACKMOUSEEVENT t = {sizeof(t), TME_LEAVE, hwnd, 0};
     TrackMouseEvent(&t);
     return 0;
   }
   case WM_MOUSELEAVE:
     g_hoverB = -1;
+    g_hoverRow = -1;
+    g_hoverCell = -1;
     g_hoverT = 0;
     TipSet(0);
     InvalidateRect(hwnd, nullptr, FALSE);
     return 0;
   case WM_LBUTTONDOWN:
     g_pressB = g_hoverB;
+    g_pressRow = g_hoverRow;
+    g_pressCell = g_hoverCell;
     if (g_hoverT == 1)
       ShowWindow(hwnd, SW_MINIMIZE);
     else if (g_hoverT == 2)
@@ -1956,16 +2779,32 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
     InvalidateRect(hwnd, nullptr, FALSE);
     return 0;
   case WM_LBUTTONUP:
-    if (g_pressB >= 0 && g_hoverB == g_pressB) {
-      int cmd = CMD_BTN[g_pressB];
+    if (g_pressRow >= 0 && g_hoverRow == g_pressRow) {
+      SetMode(g_pressRow);
+      g_panelTarget = 0.0f;
+      EnsureUiTimer();
+    } else if (g_pressCell >= 0 && g_hoverCell == g_pressCell) {
+      ClickCellAction(g_pressCell);
+    } else if (g_pressB >= 0 && g_hoverB == g_pressB) {
+      int i = g_pressB;
       g_pressB = -1;
-      if (cmd)
-        DoCmd(cmd);
-      else
+      g_pressRow = -1;
+      g_pressCell = -1;
+      if (i == 0)
+        ShowFileMenu();
+      else if (i == 1)
+        ToggleModePanel();
+      else if (i == 2)
+        DoCmd(ClickerMode() ? IDM_CLICK_START : IDM_REC);
+      else if (i == 3)
+        DoCmd(ClickerMode() ? IDM_CLICK_STOP : IDM_PLAY);
+      else if (i == 4)
         TrackMenu();
       return 0;
     }
     g_pressB = -1;
+    g_pressRow = -1;
+    g_pressCell = -1;
     return 0;
   case WM_RBUTTONUP:
     TrackMenu();
@@ -1980,12 +2819,21 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
       TipPoll();
     else if (w == 14)
       Engine_FlushMoves();
+    else if (w == 16)
+      UiAnimateTick();
     return 0;
   case WM_HOTKEY:
     if (w == HK_ID_REC)
       DoCmd(IDM_REC);
     else if (w == HK_ID_PLAY)
       DoCmd(IDM_PLAY);
+    return 0;
+  case WM_ENTERSIZEMOVE:
+    g_inMove = true;
+    return 0;
+  case WM_EXITSIZEMOVE:
+    g_inMove = false;
+    SnapUi();
     return 0;
   case WM_INPUT:
     Engine_RawInput(l);
@@ -2181,6 +3029,8 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
   case WM_DESTROY:
     KillTimer(hwnd, 1);
     KillTimer(hwnd, 2);
+    KillTimer(hwnd, 16);
+    Clicker_Stop();
     Engine_Shutdown();
     if (!IsIconic(hwnd)) {
       RECT r;
@@ -2209,9 +3059,11 @@ struct InDlg {
   HWND h = nullptr, edit = nullptr;
   const wchar_t *prompt = nullptr;
   int *outInt = nullptr;
+  long long *outInt64 = nullptr;
   double *outDouble = nullptr;
   double minv = 0, maxv = 0;
   bool isFloat = false;
+  bool isInt64 = false;
   bool ok = false, done = false, tracking = false, focus = false;
   int hover = 0;
 };
@@ -2302,6 +3154,14 @@ static LRESULT CALLBACK InputProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         v = d->maxv;
       if (d->outDouble)
         *d->outDouble = v;
+    } else if (d->isInt64) {
+      long long v = wcstoll(b, nullptr, 10);
+      if ((double)v < d->minv)
+        v = (long long)d->minv;
+      if ((double)v > d->maxv)
+        v = (long long)d->maxv;
+      if (d->outInt64)
+        *d->outInt64 = v;
     } else {
       int v = wcstol(b, nullptr, 10);
       if ((double)v < d->minv)
@@ -2500,6 +3360,38 @@ static bool InputDialog(const wchar_t *prompt, int init, int minv, int maxv,
   GfxRoundRegion(h);
   wchar_t b[32];
   swprintf_s(b, L"%d", init);
+  SetWindowTextW(d.edit, b);
+  SendMessageW(d.edit, EM_SETSEL, 0, -1);
+  ShowWindow(h, SW_SHOW);
+  SetForegroundWindow(h);
+  MSG m;
+  while (!d.done && IsWindow(h) && GetMessageW(&m, nullptr, 0, 0) > 0) {
+    TranslateMessage(&m);
+    DispatchMessageW(&m);
+  }
+  g_in = nullptr;
+  return d.ok;
+}
+
+static bool InputDialog64(const wchar_t *prompt, long long init, long long minv,
+                          long long maxv, long long &out) {
+  InDlg d;
+  d.prompt = prompt;
+  d.outInt64 = &out;
+  d.minv = (double)minv;
+  d.maxv = (double)maxv;
+  d.isInt64 = true;
+  g_in = &d;
+  RECT rw;
+  GetWindowRect(g_hwnd, &rw);
+  int x = rw.left + ((rw.right - rw.left) - IN_W) / 2;
+  int y = rw.top + ((rw.bottom - rw.top) - IN_H) / 2;
+  EnableWindow(g_hwnd, FALSE);
+  HWND h = CreateWindowExW(WS_EX_TOOLWINDOW, L"OntyTaskInput", L"", WS_POPUP, x,
+                           y, IN_W, IN_H, g_hwnd, nullptr, g_hInst, &d);
+  GfxRoundRegion(h);
+  wchar_t b[64];
+  swprintf_s(b, L"%lld", init);
   SetWindowTextW(d.edit, b);
   SendMessageW(d.edit, EM_SETSEL, 0, -1);
   ShowWindow(h, SW_SHOW);
@@ -2766,9 +3658,9 @@ static LRESULT CALLBACK AboutProc(HWND h, UINT m, WPARAM w, LPARAM l) {
                     (REAL)(rcr.right - rcr.left), (REAL)(rcr.bottom - rcr.top));
     g.FillRectangle(&bb, (REAL)rg.left, (REAL)rg.top, 1.0f,
                     (REAL)(rg.bottom - rg.top));
-    g.FillRectangle(&bb, (REAL)(rg.right - 1), (REAL)rg.top, 1.0f,
+    g.FillRectangle(&bb, (REAL)rl2.left, (REAL)rg.top, 1.0f,
                     (REAL)(rg.bottom - rg.top));
-    g.FillRectangle(&bb, (REAL)(rl2.right - 1), (REAL)rl2.top, 1.0f,
+    g.FillRectangle(&bb, (REAL)rcr.left, (REAL)rl2.top, 1.0f,
                     (REAL)(rl2.bottom - rl2.top));
     g.FillRectangle(&bb, (REAL)(rcr.right - 1), (REAL)rcr.top, 1.0f,
                     (REAL)(rcr.bottom - rcr.top));
@@ -2982,17 +3874,20 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
   g_msgTaskbar = RegisterWindowMessageW(L"TaskbarCreated");
   RegisterClasses();
   int x = g_cfg.x, y = g_cfg.y;
+  g_extraH = ClickerMode() ? (float)ClickAreaH() : 0.0f;
+  g_extraTarget = g_extraH;
+  int startH = WIN_H + (int)(g_extraH + 0.5f);
   int vx = GetSystemMetrics(SM_XVIRTUALSCREEN),
       vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
   int vw = GetSystemMetrics(SM_CXVIRTUALSCREEN),
       vh = GetSystemMetrics(SM_CYVIRTUALSCREEN);
   if (x < vx - WIN_W + 20 || x > vx + vw - 20 || y < vy || y > vy + vh - 40) {
     x = vx + (vw - WIN_W) / 2;
-    y = vy + (vh - WIN_H) / 3;
+    y = vy + (vh - startH) / 3;
   }
   g_hwnd = CreateWindowExW(0, L"OntyTaskMain", L"OntyTask",
                            WS_POPUP | WS_SYSMENU | WS_MINIMIZEBOX, x, y, WIN_W,
-                           WIN_H, nullptr, nullptr, hInst, nullptr);
+                           startH, nullptr, nullptr, hInst, nullptr);
 
   if (!cli.file.empty()) {
     if (Engine_Load(cli.file.c_str())) {

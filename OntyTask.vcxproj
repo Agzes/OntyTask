@@ -53,7 +53,7 @@
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <SetChecksum>true</SetChecksum>
       <LargeAddressAware>true</LargeAddressAware>
-      <AdditionalDependencies>gdiplus.lib;wininet.lib;comdlg32.lib;comctl32.lib;uxtheme.lib;shell32.lib;user32.lib;gdi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gdiplus.lib;wininet.lib;comdlg32.lib;comctl32.lib;uxtheme.lib;shell32.lib;user32.lib;gdi32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>$(ProjectDir)src\app.manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles>
@@ -62,6 +62,7 @@
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\engine\engine.cpp" />
+    <ClCompile Include="src\engine\clicker.cpp" />
     <ClCompile Include="src\ui\gfx.cpp" />
     <ClCompile Include="src\ui\statusbar.cpp" />
     <ClCompile Include="src\core\config.cpp" />
@@ -75,6 +76,7 @@
     <ClInclude Include="src\core\json.h" />
     <ClInclude Include="src\core\update.h" />
     <ClInclude Include="src\engine\engine.h" />
+    <ClInclude Include="src\engine\clicker.h" />
     <ClInclude Include="src\ui\gfx.h" />
     <ClInclude Include="src\ui\msgbox.h" />
     <ClInclude Include="src\ui\statusbar.h" />
