@@ -122,6 +122,7 @@ enum {
   IDM_CLICK_HOLD,
   IDM_CLICK_KEY,
   IDM_HKCLICK,
+  IDM_TRAY_ENABLE = 219,
   IDM_PANIC_ADD = 230,
   IDM_PANIC_CHANGE_0 = 231,
   IDM_PANIC_REMOVE_0 = 231 + MAX_PANIC_KEYS,
@@ -786,7 +787,7 @@ static std::wstring TipFor(UINT id) {
   case TIP_MIN:
     return L(L_MIN);
   case TIP_CLOSE:
-    return L(L_HIDE);
+    return L(g_cfg.trayEnable ? L_HIDE : L_EXIT);
   case TIP_ICON:
     return std::wstring(L(L_APPNAME)) + L" \u2014 " + L(L_ABOUT);
   case TIP_UPDATE:
@@ -1592,6 +1593,8 @@ static void BuildClickerMenu(HMENU root) {
   AppendLangMenu(root);
   AppendStatusbarMenu(root);
   AddCheckWithIcon(root, IDM_TOPMOST, L(L_TOPMOST), g_cfg.topmost != 0, 0xE718);
+  AddCheckWithIcon(root, IDM_TRAY_ENABLE, L(L_TRAY_ENABLE),
+                   g_cfg.trayEnable != 0, 0xE770);
   AddCheckWithIcon(root, IDM_AUTOMINIMIZE, L(L_AUTOMINIMIZE),
                    g_cfg.autoMinimize != 0, 0xE921);
   AppendMenuW(root, MF_SEPARATOR, 0, nullptr);
@@ -1660,7 +1663,7 @@ static void BuildMenu(HMENU root) {
   swprintf_s(lpCustStr, L"%s (%d)...", L(L_LOOPSCUSTOM), g_cfg.loops);
   AddCheck(lp, IDM_LPCUSTOM, lpCustStr, customLoop);
   AppendMenuW(root, MF_POPUP, (UINT_PTR)lp, L(L_LOOPS));
-  IconLast(root, 0xE74D);
+  IconLast(root, 0xE8EE);
   AppendMenuW(root, MF_SEPARATOR, 0, nullptr);
 
   AddCheckWithIcon(root, IDM_TOPMOST, L(L_TOPMOST), g_cfg.topmost != 0, 0xE718);
@@ -1680,6 +1683,8 @@ static void BuildMenu(HMENU root) {
   AppendThemeMenu(root);
   AppendStatusbarMenu(root);
 
+  AddCheckWithIcon(root, IDM_TRAY_ENABLE, L(L_TRAY_ENABLE),
+                   g_cfg.trayEnable != 0, 0xE770);
   AddCheckWithIcon(root, IDM_AUTOMINIMIZE, L(L_AUTOMINIMIZE),
                    g_cfg.autoMinimize != 0, 0xE921);
   bool isAssoc = IsFileAssociationRegistered();
@@ -1955,6 +1960,8 @@ static HICON TrayIconMake() {
 }
 
 static void TrayAdd() {
+  if (!g_cfg.trayEnable)
+    return;
   g_nid = {};
   g_nid.cbSize = sizeof(g_nid);
   g_nid.hWnd = g_hwnd;
@@ -1976,6 +1983,8 @@ static void TrayRemove() {
 }
 
 static void TrayIconRefresh() {
+  if (!g_cfg.trayEnable)
+    return;
   if (g_trayIcon)
     DestroyIcon(g_trayIcon);
   g_trayIcon = TrayIconMake();
@@ -2598,6 +2607,20 @@ static void DoCmd(int id) {
     g_cfg.autoMinimize = !g_cfg.autoMinimize;
     ConfigSave();
     break;
+  case IDM_TRAY_ENABLE:
+    g_cfg.trayEnable = !g_cfg.trayEnable;
+    ConfigSave();
+    if (g_cfg.trayEnable) {
+      TrayAdd();
+    } else {
+      TrayRemove();
+      if (g_trayIcon) {
+        DestroyIcon(g_trayIcon);
+        g_trayIcon = nullptr;
+      }
+      g_nid.hIcon = nullptr;
+    }
+    break;
   case IDM_TOPMOST:
     g_cfg.topmost = !g_cfg.topmost;
     SetWindowPos(g_hwnd, g_cfg.topmost ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0,
@@ -2833,9 +2856,12 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
     g_pressCell = g_hoverCell;
     if (g_hoverT == 1)
       ShowWindow(hwnd, SW_MINIMIZE);
-    else if (g_hoverT == 2)
-      ShowWindow(hwnd, SW_HIDE);
-    else if (g_hoverT == 3) {
+    else if (g_hoverT == 2) {
+      if (g_cfg.trayEnable)
+        ShowWindow(hwnd, SW_HIDE);
+      else
+        PostMessageW(hwnd, WM_APP_QUIT, 0, 0);
+    } else if (g_hoverT == 3) {
       g_cfg.topmost = !g_cfg.topmost;
       SetWindowPos(hwnd, g_cfg.topmost ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0,
                    0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
@@ -3102,7 +3128,10 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
     return 0;
   }
   case WM_CLOSE:
-    ShowWindow(hwnd, SW_HIDE);
+    if (g_cfg.trayEnable)
+      ShowWindow(hwnd, SW_HIDE);
+    else
+      PostMessageW(hwnd, WM_APP_QUIT, 0, 0);
     return 0;
   case WM_QUERYENDSESSION:
     ConfigSave();

@@ -10,6 +10,7 @@ struct Config {
   double speedCustom;
   int recordMods, recordVk, playMods, playVk;
   int theme, lang, statusbarTop, autoupdate, trayIcon, uiIcon;
+  int trayEnable;
   int panicPause, panicScroll, panicEsc, panicMouseMove;
   int panicKeyCount;
   int panicKeyMods[MAX_PANIC_KEYS];

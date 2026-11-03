@@ -147,6 +147,7 @@ enum LStrId {
   L_PANIC_ADD,
   L_PANIC_CHANGE,
   L_PANIC_REMOVE,
+  L_TRAY_ENABLE,
   L_COUNT
 };
 

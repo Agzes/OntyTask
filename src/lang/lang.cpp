@@ -163,6 +163,7 @@ static const char *kKeys[L_COUNT] = {
     "panic_add",
     "panic_change",
     "panic_remove",
+    "tray_enable",
 };
 
 static bool ReadResourceText(int id, std::string &out) {

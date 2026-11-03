@@ -136,6 +136,10 @@ void ConfigLoad() {
       GetPrivateProfileIntW(L"OntyTask", L"tray_icon", 0, ini.c_str());
   if (g_cfg.trayIcon < 0 || g_cfg.trayIcon > 2)
     g_cfg.trayIcon = 0;
+  g_cfg.trayEnable =
+      GetPrivateProfileIntW(L"OntyTask", L"tray_enable", 1, ini.c_str());
+  if (g_cfg.trayEnable < 0 || g_cfg.trayEnable > 1)
+    g_cfg.trayEnable = 1;
   g_cfg.uiIcon = GetPrivateProfileIntW(L"OntyTask", L"ui_icon", 0, ini.c_str());
   if (g_cfg.uiIcon < 0 || g_cfg.uiIcon > 2)
     g_cfg.uiIcon = 0;
@@ -266,6 +270,7 @@ void ConfigSave() {
   }
   w(L"autoupdate", g_cfg.autoupdate);
   w(L"tray_icon", g_cfg.trayIcon);
+  w(L"tray_enable", g_cfg.trayEnable);
   w(L"ui_icon", g_cfg.uiIcon);
   w(L"auto_minimize", g_cfg.autoMinimize);
   w(L"mode", g_cfg.mode);

@@ -146,6 +146,7 @@
         "panic_key": "Panic-клавиша",
         "panic_add": "Добавить panic-клавишу...",
         "panic_change": "Изменить...",
-        "panic_remove": "Удалить"
+        "panic_remove": "Удалить",
+        "tray_enable": "Системный трей"
     }
 }

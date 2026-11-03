@@ -146,6 +146,7 @@
         "panic_key": "Panic key",
         "panic_add": "Add panic key...",
         "panic_change": "Change...",
-        "panic_remove": "Remove"
+        "panic_remove": "Remove",
+        "tray_enable": "System tray"
     }
 }

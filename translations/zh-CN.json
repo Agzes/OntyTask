@@ -146,6 +146,7 @@
         "panic_key": "紧急停止键",
         "panic_add": "添加紧急停止快捷键...",
         "panic_change": "更改...",
-        "panic_remove": "移除"
+        "panic_remove": "移除",
+        "tray_enable": "系统托盘"
     }
 }
