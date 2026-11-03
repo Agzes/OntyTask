@@ -33,26 +33,26 @@
 - **System Tray Support**: Minimize to tray with quick controls, theme matching, and auto-minimize option.
 - **Clean Themes**: Dark mode, Light mode, and Windows Acrylic blur.
 - **File Association**: Double-click `.onty` files to open and play macros right away.
-- **Multi-Language**: Built-in English and Russian, plus custom JSON translations.
+- **Multi-Language**: Built-in English, Russian, and Simplified Chinese, plus custom JSON translations.
 
 ---
 
 ## OntyTask vs TinyTask
 
-| Feature               |    TinyTask (v1.77)     |       OntyTask (v0.1)       | Notes                                                        |
-| :-------------------- | :---------------------: | :-------------------------: | :----------------------------------------------------------- |
-| **License**           | Proprietary (Abandoned) |   **Open Source (GPL-3)**   | 100% transparent and safe                                    |
-| **Input Capture**     |   10ms Timer Polling    |    **Hooks + Raw Input**    | No dropped keys or jitter                                    |
-| **3D Games & Camera** |          ✕ No           |          **✓ Yes**          | Works with locked cursor                                     |
-| **Standalone .EXE**   |         ~ Yes*          |      ✕ No (by design)       | Avoids antivirus false flags; uses safer `.onty` files       |
-| **Hotkeys**           |    Preset list only     |    **Any key or combo**     | Full custom rebinding                                        |
-| **Emergency Stop**    |        Fixed key        |      **Configurable**       | Pause, Scroll Lock, Esc, or mouse move                       |
-| **File Format**       |      Binary `.rec`      |     **JSON (`.onty`)**      | Human-readable and editable                                  |
-| **Themes & UI**       |      Classic Win32      | **Dark / Light / Acrylic**  | Modern look and vector UI                                    |
-| **Status Overlay**    |     Title text only     |      **Floating HUD**       | Evasive on-screen bar                                        |
-| **Languages**         |        English**        | **English, Russian + JSON** | Switchable on the fly                                        |
-| **Architecture**      |       32-bit only       |      **64-bit (x64)**       | Native modern binary                                         |
-| **File Size**         |       **~35 KB**        |         &lt;512 KB          | TinyTask is smaller; OntyTask includes UI themes & Raw Input |
+| Feature               |    TinyTask (v1.77)     |           OntyTask (v0.1)            | Notes                                                        |
+| :-------------------- | :---------------------: | :----------------------------------: | :----------------------------------------------------------- |
+| **License**           | Proprietary (Abandoned) |       **Open Source (GPL-3)**        | 100% transparent and safe                                    |
+| **Input Capture**     |   10ms Timer Polling    |        **Hooks + Raw Input**         | No dropped keys or jitter                                    |
+| **3D Games & Camera** |          ✕ No           |              **✓ Yes**               | Works with locked cursor                                     |
+| **Standalone .EXE**   |         ~ Yes*          |           ✕ No (by design)           | Avoids antivirus false flags; uses safer `.onty` files       |
+| **Hotkeys**           |    Preset list only     |         **Any key or combo**         | Full custom rebinding                                        |
+| **Emergency Stop**    |        Fixed key        |           **Configurable**           | Pause, Scroll Lock, Esc, or mouse move                       |
+| **File Format**       |      Binary `.rec`      |          **JSON (`.onty`)**          | Human-readable and editable                                  |
+| **Themes & UI**       |      Classic Win32      |      **Dark / Light / Acrylic**      | Modern look and vector UI                                    |
+| **Status Overlay**    |     Title text only     |           **Floating HUD**           | Evasive on-screen bar                                        |
+| **Languages**         |        English**        | **English, Russian, Chinese + JSON** | Switchable on the fly                                        |
+| **Architecture**      |       32-bit only       |           **64-bit (x64)**           | Native modern binary                                         |
+| **File Size**         |       **~35 KB**        |              &lt;512 KB              | TinyTask is smaller; OntyTask includes UI themes & Raw Input |
 
 \* Standalone `.exe` generators frequently trigger antivirus false alarms; OntyTask uses a cleaner and safer `.onty` file association model.
 \*\* Official localized builds existed in the past, but are no longer officially distributed.
