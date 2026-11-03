@@ -22,6 +22,11 @@ static HHOOK g_kbHook = nullptr;
 static HHOOK g_msHook = nullptr;
 static HHOOK g_playMsHook = nullptr;
 static bool g_keysDown[256];
+static bool g_recIgnore[256];
+static bool g_stopHotkeySeen = false;
+static DWORD g_stopHotkeyTick = 0;
+static int g_stopHotkeyMods = 0;
+static BYTE g_stopHotkeyVk = 0;
 static bool g_mbLeft = false, g_mbRight = false, g_mbMid = false,
             g_mbX1 = false, g_mbX2 = false;
 static HANDLE g_playThread = nullptr;
@@ -56,6 +61,18 @@ bool HotkeyDown(int mods, int vk) {
     return false;
   if (!(GetAsyncKeyState(vk) & 0x8000))
     return false;
+  if (!ModOk(mods, HK_CTRL, VK_CONTROL))
+    return false;
+  if (!ModOk(mods, HK_SHIFT, VK_SHIFT))
+    return false;
+  if (!ModOk(mods, HK_ALT, VK_MENU))
+    return false;
+  if (!ModOk2(mods, HK_WIN, VK_LWIN, VK_RWIN))
+    return false;
+  return true;
+}
+
+static bool ModsDown(int mods) {
   if (!ModOk(mods, HK_CTRL, VK_CONTROL))
     return false;
   if (!ModOk(mods, HK_SHIFT, VK_SHIFT))
@@ -289,76 +306,55 @@ static bool IsModVk(BYTE vk) {
          vk == VK_RWIN;
 }
 
-static bool IsActiveRecModVk(BYTE vk) {
+static bool IsHotkeyModVk(BYTE vk, int mods) {
   if (vk == VK_CONTROL || vk == VK_LCONTROL || vk == VK_RCONTROL)
-    return (g_cfg.recordMods & HK_CTRL) != 0;
+    return (mods & HK_CTRL) != 0;
   if (vk == VK_SHIFT || vk == VK_LSHIFT || vk == VK_RSHIFT)
-    return (g_cfg.recordMods & HK_SHIFT) != 0;
+    return (mods & HK_SHIFT) != 0;
   if (vk == VK_MENU || vk == VK_LMENU || vk == VK_RMENU)
-    return (g_cfg.recordMods & HK_ALT) != 0;
+    return (mods & HK_ALT) != 0;
   if (vk == VK_LWIN || vk == VK_RWIN)
-    return (g_cfg.recordMods & HK_WIN) != 0;
+    return (mods & HK_WIN) != 0;
+  return false;
+}
+
+static bool IsAppHotkeyKey(BYTE vk) {
+  if (g_cfg.recordVk && vk == (BYTE)g_cfg.recordVk &&
+      ModsDown(g_cfg.recordMods)) {
+    g_stopHotkeySeen = true;
+    g_stopHotkeyTick = GetTickCount();
+    g_stopHotkeyMods = g_cfg.recordMods;
+    g_stopHotkeyVk = vk;
+    return true;
+  }
+  if (g_cfg.playVk && vk == (BYTE)g_cfg.playVk && ModsDown(g_cfg.playMods)) {
+    g_stopHotkeySeen = true;
+    g_stopHotkeyTick = GetTickCount();
+    g_stopHotkeyMods = g_cfg.playMods;
+    g_stopHotkeyVk = vk;
+    return true;
+  }
   return false;
 }
 
 static void TrimTail() {
-  if (g_events.empty())
-    return;
-
-  if (g_events.back().type == A_KD || g_events.back().type == A_KU) {
-    BYTE lastVk = g_events.back().vk;
-    if (lastVk == VK_PAUSE || lastVk == VK_SCROLL || lastVk == VK_ESCAPE) {
-      while (!g_events.empty() &&
-             (g_events.back().type == A_KD || g_events.back().type == A_KU) &&
-             g_events.back().vk == lastVk) {
+  if (g_stopHotkeySeen && GetTickCount() - g_stopHotkeyTick < 1000) {
+    while (!g_events.empty()) {
+      const MAc &a = g_events.back();
+      if ((a.type == A_KD || a.type == A_KU) && a.vk == g_stopHotkeyVk)
         g_events.pop_back();
-      }
-      return;
+      else
+        break;
+    }
+    while (!g_events.empty()) {
+      const MAc &a = g_events.back();
+      if (a.type == A_KD && IsHotkeyModVk(a.vk, g_stopHotkeyMods))
+        g_events.pop_back();
+      else
+        break;
     }
   }
-
-  bool hasCtrl = (g_cfg.recordMods & HK_CTRL) != 0;
-  bool hasShift = (g_cfg.recordMods & HK_SHIFT) != 0;
-  bool hasAlt = (g_cfg.recordMods & HK_ALT) != 0;
-  bool hasWin = (g_cfg.recordMods & HK_WIN) != 0;
-
-  bool seenRecVk = false;
-  while (!g_events.empty()) {
-    const MAc &a = g_events.back();
-    if (a.type == A_KD || a.type == A_KU) {
-      if (a.vk == (BYTE)g_cfg.recordVk) {
-        seenRecVk = true;
-        g_events.pop_back();
-        continue;
-      }
-      if (seenRecVk) {
-        if (hasCtrl && (a.vk == VK_CONTROL || a.vk == VK_LCONTROL ||
-                        a.vk == VK_RCONTROL)) {
-          hasCtrl = false;
-          g_events.pop_back();
-          continue;
-        }
-        if (hasShift &&
-            (a.vk == VK_SHIFT || a.vk == VK_LSHIFT || a.vk == VK_RSHIFT)) {
-          hasShift = false;
-          g_events.pop_back();
-          continue;
-        }
-        if (hasAlt &&
-            (a.vk == VK_MENU || a.vk == VK_LMENU || a.vk == VK_RMENU)) {
-          hasAlt = false;
-          g_events.pop_back();
-          continue;
-        }
-        if (hasWin && (a.vk == VK_LWIN || a.vk == VK_RWIN)) {
-          hasWin = false;
-          g_events.pop_back();
-          continue;
-        }
-      }
-    }
-    break;
-  }
+  g_stopHotkeySeen = false;
 }
 
 static LRESULT CALLBACK RecKbProc(int code, WPARAM w, LPARAM l) {
@@ -369,6 +365,12 @@ static LRESULT CALLBACK RecKbProc(int code, WPARAM w, LPARAM l) {
       return CallNextHookEx(nullptr, code, w, l);
     BYTE vk = (BYTE)(p->vkCode & 0xFF);
 
+    if (g_recIgnore[vk]) {
+      if (up)
+        g_recIgnore[vk] = false;
+      return CallNextHookEx(nullptr, code, w, l);
+    }
+
     if (up)
       g_keysDown[vk] = false;
     else {
@@ -377,9 +379,9 @@ static LRESULT CALLBACK RecKbProc(int code, WPARAM w, LPARAM l) {
       g_keysDown[vk] = true;
     }
 
-    if (g_cfg.recordVk && vk == (BYTE)g_cfg.recordVk) {
-      if (HotkeyDown(g_cfg.recordMods, g_cfg.recordVk))
-        return CallNextHookEx(nullptr, code, w, l);
+    if (!up && IsAppHotkeyKey(vk)) {
+      g_recIgnore[vk] = true;
+      return CallNextHookEx(nullptr, code, w, l);
     }
 
     double now = NowMs();
@@ -623,6 +625,11 @@ bool Engine_Record() {
   if (fg && fg != g_hwnd)
     g_targetHwnd = fg;
   memset(g_keysDown, 0, sizeof(g_keysDown));
+  memset(g_recIgnore, 0, sizeof(g_recIgnore));
+  for (int vk = 1; vk < 256; vk++) {
+    if (GetAsyncKeyState(vk) & 0x8000)
+      g_recIgnore[vk] = true;
+  }
   g_mbLeft = g_mbRight = g_mbMid = g_mbX1 = g_mbX2 = false;
   ClearPendingMoves();
   g_lastMoveMs = NowMs();
