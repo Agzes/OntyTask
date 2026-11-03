@@ -19,7 +19,7 @@ void GfxInit() {
   ReleaseDC(nullptr, dc);
 }
 
-void GfxShutdown() { Gdiplus::GdiplusShutdown(g_token); }
+void GfxShutdown() {}
 
 int GfxDpi() { return g_dpi; }
 

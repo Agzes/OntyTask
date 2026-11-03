@@ -30,6 +30,7 @@
 #define WM_APP_TRAY (WM_APP + 1)
 #define WM_APP_UPDATE (WM_APP + 2)
 #define WM_APP_PLAYDONE (WM_APP + 3)
+#define WM_APP_QUIT (WM_APP + 7)
 #define WM_IN_OK (WM_APP + 20)
 #define WM_IN_CANCEL (WM_APP + 21)
 
@@ -2636,7 +2637,7 @@ static void DoCmd(int id) {
     break;
   case IDM_EXIT:
     ConfigSave();
-    DestroyWindow(g_hwnd);
+    PostMessageW(g_hwnd, WM_APP_QUIT, 0, 0);
     break;
   default:
     if (id >= IDM_PANIC_CHANGE_0 && id < IDM_PANIC_CHANGE_0 + MAX_PANIC_KEYS) {
@@ -2962,6 +2963,9 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
       DestroyWindow(hwnd);
       return 0;
     }
+    return 0;
+  case WM_APP_QUIT:
+    DestroyWindow(hwnd);
     return 0;
   case WM_APP + 5:
     if (g_state.load() == ST_PLAY) {
