@@ -80,6 +80,12 @@ void ConfigLoad() {
   if (g_cfg.speedCustom > 1000.0)
     g_cfg.speedCustom = 1000.0;
   g_cfg.loops = GetPrivateProfileIntW(L"OntyTask", L"loops", 1, ini.c_str());
+  g_cfg.loopDelay =
+      GetPrivateProfileIntW(L"OntyTask", L"loop_delay", 0, ini.c_str());
+  if (g_cfg.loopDelay < 0)
+    g_cfg.loopDelay = 0;
+  if (g_cfg.loopDelay > 3600000)
+    g_cfg.loopDelay = 3600000;
   g_cfg.continuous =
       GetPrivateProfileIntW(L"OntyTask", L"continuous", 0, ini.c_str());
   g_cfg.topmost =
@@ -244,6 +250,7 @@ void ConfigSave() {
   swprintf_s(b, L"%.4g", g_cfg.speedCustom);
   WritePrivateProfileStringW(L"OntyTask", L"speed_custom_val", b, ini.c_str());
   w(L"loops", g_cfg.loops);
+  w(L"loop_delay", g_cfg.loopDelay);
   w(L"continuous", g_cfg.continuous);
   w(L"topmost", g_cfg.topmost);
   w(L"theme", g_cfg.theme);

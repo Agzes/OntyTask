@@ -8,6 +8,7 @@
 struct Config {
   int x, y, speed, loops, continuous, topmost;
   double speedCustom;
+  int loopDelay;
   int recordMods, recordVk, playMods, playVk;
   int theme, lang, statusbarTop, autoupdate, trayIcon, uiIcon;
   int trayEnable;

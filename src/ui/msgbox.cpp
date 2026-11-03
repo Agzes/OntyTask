@@ -339,6 +339,7 @@ int UiMessage(HWND owner, const wchar_t *text, const wchar_t *caption,
   int textH = t.bottom;
   if (textH < Scale(18))
     textH = Scale(18);
+  textH += Scale(2);
   int contentH = (icon != UI_ICON_NONE) ? (std::max)(iconSize, textH) : textH;
 
   if (icon != UI_ICON_NONE) {

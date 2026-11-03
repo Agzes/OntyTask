@@ -69,6 +69,7 @@ enum {
   IDM_LP1000,
   IDM_LPCONT,
   IDM_LPCUSTOM,
+  IDM_LPDELAY = 137,
   IDM_TH0 = 140,
   IDM_TH1,
   IDM_TH2,
@@ -1662,6 +1663,11 @@ static void BuildMenu(HMENU root) {
   wchar_t lpCustStr[64];
   swprintf_s(lpCustStr, L"%s (%d)...", L(L_LOOPSCUSTOM), g_cfg.loops);
   AddCheck(lp, IDM_LPCUSTOM, lpCustStr, customLoop);
+  AppendMenuW(lp, MF_SEPARATOR, 0, nullptr);
+  wchar_t lpDelayStr[96];
+  swprintf_s(lpDelayStr, L"%s: %d %s...", L(L_LOOP_DELAY), g_cfg.loopDelay,
+             L(L_MS));
+  AddMI(lp, IDM_LPDELAY, lpDelayStr, 0xE916);
   AppendMenuW(root, MF_POPUP, (UINT_PTR)lp, L(L_LOOPS));
   IconLast(root, 0xE8EE);
   AppendMenuW(root, MF_SEPARATOR, 0, nullptr);
@@ -2450,6 +2456,14 @@ static void DoCmd(int id) {
     }
     break;
   }
+  case IDM_LPDELAY: {
+    int v = g_cfg.loopDelay;
+    if (InputDialog(L(L_Q_LOOP_DELAY), v, 0, 3600000, v)) {
+      g_cfg.loopDelay = v;
+      ConfigSave();
+    }
+    break;
+  }
   case IDM_PANIC_PAUSE:
     g_cfg.panicPause = !g_cfg.panicPause;
     ConfigSave();
@@ -3188,7 +3202,7 @@ struct InDlg {
 
 static InDlg *g_in = nullptr;
 
-static const int IN_W = 280, IN_H = 114;
+static const int IN_W = 340, IN_H = 114;
 static RECT InCaRect() {
   RECT r = {0, 84, IN_W / 2, IN_H};
   return r;

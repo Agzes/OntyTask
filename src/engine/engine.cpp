@@ -905,6 +905,20 @@ static DWORD WINAPI PlayProc(LPVOID) {
         break;
       }
     }
+    if (lp + 1 < total && g_cfg.loopDelay > 0) {
+      double end = NowMs() + g_cfg.loopDelay;
+      while (NowMs() < end) {
+        if (CheckPanic())
+          goto done;
+        double remain = end - NowMs();
+        if (remain > 20)
+          Sleep(10);
+        else if (remain > 2)
+          Sleep(1);
+        else
+          Sleep(0);
+      }
+    }
   }
 done:
   ReleaseAll();

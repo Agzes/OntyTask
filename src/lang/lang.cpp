@@ -164,6 +164,8 @@ static const char *kKeys[L_COUNT] = {
     "panic_change",
     "panic_remove",
     "tray_enable",
+    "loop_delay",
+    "q_loop_delay",
 };
 
 static bool ReadResourceText(int id, std::string &out) {

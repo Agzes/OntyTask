@@ -147,6 +147,8 @@
         "panic_add": "Add panic key...",
         "panic_change": "Change...",
         "panic_remove": "Remove",
-        "tray_enable": "System tray"
+        "tray_enable": "System tray",
+        "loop_delay": "Delay between loops",
+        "q_loop_delay": "Delay between loops in ms (0-3600000)"
     }
 }
