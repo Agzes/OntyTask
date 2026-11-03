@@ -159,6 +159,10 @@ static const char *kKeys[L_COUNT] = {
     "click_hold",
     "q_hold",
     "hk_clicker",
+    "panic_key",
+    "panic_add",
+    "panic_change",
+    "panic_remove",
 };
 
 static bool ReadResourceText(int id, std::string &out) {

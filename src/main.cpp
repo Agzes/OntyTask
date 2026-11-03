@@ -121,6 +121,9 @@ enum {
   IDM_CLICK_HOLD,
   IDM_CLICK_KEY,
   IDM_HKCLICK,
+  IDM_PANIC_ADD = 230,
+  IDM_PANIC_CHANGE_0 = 231,
+  IDM_PANIC_REMOVE_0 = 231 + MAX_PANIC_KEYS,
   IDM_RECENT_0 = 1700,
   IDM_RECENT_7 = 1707,
   IDM_RECENT_CLEAR = 1708
@@ -381,6 +384,8 @@ static std::wstring ActiveStopKeysText() {
     keys.push_back(L"Scroll");
   if (g_cfg.panicEsc)
     keys.push_back(L"Esc");
+  for (int i = 0; i < g_cfg.panicKeyCount; i++)
+    keys.push_back(FmtHk(g_cfg.panicKeyMods[i], g_cfg.panicKeyVk[i]));
   if (keys.empty() && g_cfg.playVk) {
     keys.push_back(FmtHk(g_cfg.playMods, g_cfg.playVk));
   }
@@ -1094,6 +1099,15 @@ static void AddCheckWithIcon(HMENU m, UINT id, const wchar_t *txt, bool checked,
   GfxMenuGlyph(m, id, checked ? (wchar_t)0xE73E : uncheckedGlyph, g_menuIcon);
 }
 
+static bool PanicKeyExists(int mods, int vk, int ignore) {
+  for (int i = 0; i < g_cfg.panicKeyCount; i++) {
+    if (i != ignore && g_cfg.panicKeyMods[i] == mods &&
+        g_cfg.panicKeyVk[i] == vk)
+      return true;
+  }
+  return false;
+}
+
 static COLORREF MenuIconColor() {
   return GfxMenuTheme() == 2 ? RGB(210, 210, 210) : RGB(60, 60, 60);
 }
@@ -1103,6 +1117,34 @@ static void IconLast(HMENU m, wchar_t glyph) {
   mii.fMask = MIIM_BITMAP;
   mii.hbmpItem = GfxGlyphBitmap(glyph, g_menuIcon);
   SetMenuItemInfoW(m, GetMenuItemCount(m) - 1, TRUE, &mii);
+}
+
+static void AppendPanicMenu(HMENU parent) {
+  HMENU pnk = CreatePopupMenu();
+  AddCheck(pnk, IDM_PANIC_PAUSE, L(L_PANIC_PAUSE), g_cfg.panicPause != 0);
+  AddCheck(pnk, IDM_PANIC_SCROLL, L(L_PANIC_SCROLL), g_cfg.panicScroll != 0);
+  AddCheck(pnk, IDM_PANIC_ESC, L(L_PANIC_ESC), g_cfg.panicEsc != 0);
+  AddCheck(pnk, IDM_PANIC_MOUSE, L(L_PANIC_MOUSE), g_cfg.panicMouseMove != 0);
+  if (g_cfg.panicKeyCount > 0)
+    AppendMenuW(pnk, MF_SEPARATOR, 0, nullptr);
+  for (int i = 0; i < g_cfg.panicKeyCount; i++) {
+    std::wstring label = FmtHk(g_cfg.panicKeyMods[i], g_cfg.panicKeyVk[i]);
+    HMENU keyMenu = CreatePopupMenu();
+    AddMI(keyMenu, IDM_PANIC_CHANGE_0 + i, L(L_PANIC_CHANGE), 0xE70F);
+    AddMI(keyMenu, IDM_PANIC_REMOVE_0 + i, L(L_PANIC_REMOVE), 0xE74D);
+    AppendMenuW(pnk, MF_POPUP, (UINT_PTR)keyMenu, label.c_str());
+    IconLast(pnk, 0xE765);
+  }
+  AppendMenuW(pnk, MF_SEPARATOR, 0, nullptr);
+  wchar_t addKeyText[96];
+  swprintf_s(addKeyText, L"%s (%d/%d)", L(L_PANIC_ADD), g_cfg.panicKeyCount,
+             MAX_PANIC_KEYS);
+  if (g_cfg.panicKeyCount >= MAX_PANIC_KEYS)
+    AppendMenuW(pnk, MF_STRING | MF_GRAYED, IDM_PANIC_ADD, addKeyText);
+  else
+    AddMI(pnk, IDM_PANIC_ADD, addKeyText, 0xE710);
+  AppendMenuW(parent, MF_POPUP, (UINT_PTR)pnk, L(L_PANIC_KEYS));
+  IconLast(parent, 0xE71A);
 }
 
 static bool CopyMacroToClipboard() {
@@ -1539,6 +1581,8 @@ static void BuildClickerMenu(HMENU root) {
   std::wstring hkItem = std::wstring(L(L_HK_CLICKER)) + L":   " +
                         FmtHk(g_cfg.playMods, g_cfg.playVk);
   AddMI(hk, IDM_HKCLICK, hkItem.c_str(), 0xE70F);
+  AppendMenuW(hk, MF_SEPARATOR, 0, nullptr);
+  AppendPanicMenu(hk);
   AppendMenuW(root, MF_POPUP, (UINT_PTR)hk, L(L_HOTKEYS));
   IconLast(root, 0xE765);
   AppendMenuW(root, MF_SEPARATOR, 0, nullptr);
@@ -1628,13 +1672,7 @@ static void BuildMenu(HMENU root) {
   AddMI(hk, IDM_HKR0, recItem.c_str(), 0xE70F);
   AddMI(hk, IDM_HKP0, playItem.c_str(), 0xE70F);
   AppendMenuW(hk, MF_SEPARATOR, 0, nullptr);
-  HMENU pnk = CreatePopupMenu();
-  AddCheck(pnk, IDM_PANIC_PAUSE, L(L_PANIC_PAUSE), g_cfg.panicPause != 0);
-  AddCheck(pnk, IDM_PANIC_SCROLL, L(L_PANIC_SCROLL), g_cfg.panicScroll != 0);
-  AddCheck(pnk, IDM_PANIC_ESC, L(L_PANIC_ESC), g_cfg.panicEsc != 0);
-  AddCheck(pnk, IDM_PANIC_MOUSE, L(L_PANIC_MOUSE), g_cfg.panicMouseMove != 0);
-  AppendMenuW(hk, MF_POPUP, (UINT_PTR)pnk, L(L_PANIC_KEYS));
-  IconLast(hk, 0xE71A);
+  AppendPanicMenu(hk);
   AppendMenuW(root, MF_POPUP, (UINT_PTR)hk, L(L_HOTKEYS));
   IconLast(root, 0xE765);
 
@@ -1970,6 +2008,10 @@ static void FmtMmSs(wchar_t *b, size_t n, DWORD ms) {
 }
 
 static void StatusTick() {
+  if (Clicker_IsRunning() && Engine_PanicKeyDown()) {
+    StopClicker(true);
+    return;
+  }
   std::wstring s = EngineStatusText();
   int st = g_state.load();
   bool click = Clicker_IsRunning();
@@ -2414,6 +2456,22 @@ static void DoCmd(int id) {
     g_cfg.panicMouseMove = !g_cfg.panicMouseMove;
     ConfigSave();
     break;
+  case IDM_PANIC_ADD: {
+    if (g_cfg.panicKeyCount >= MAX_PANIC_KEYS)
+      break;
+    int mods = 0, vk = 0;
+    if (UiHotkeyCaptureNamed(g_hwnd, L(L_PANIC_KEY), mods, vk)) {
+      if (PanicKeyExists(mods, vk, -1)) {
+        UiMessage(g_hwnd, L(L_ST_CONFLICT), L(L_APPNAME), UI_OK, UI_ICON_ERROR);
+        break;
+      }
+      g_cfg.panicKeyMods[g_cfg.panicKeyCount] = mods;
+      g_cfg.panicKeyVk[g_cfg.panicKeyCount] = vk;
+      g_cfg.panicKeyCount++;
+      ConfigSave();
+    }
+    break;
+  }
   case IDM_SB_SHOW:
     g_cfg.statusbarShow = !g_cfg.statusbarShow;
     if (!g_cfg.statusbarShow)
@@ -2581,7 +2639,34 @@ static void DoCmd(int id) {
     DestroyWindow(g_hwnd);
     break;
   default:
-    if (id >= IDM_RECENT_0 && id < IDM_RECENT_0 + 8) {
+    if (id >= IDM_PANIC_CHANGE_0 && id < IDM_PANIC_CHANGE_0 + MAX_PANIC_KEYS) {
+      int idx = id - IDM_PANIC_CHANGE_0;
+      if (idx < g_cfg.panicKeyCount) {
+        int mods = g_cfg.panicKeyMods[idx];
+        int vk = g_cfg.panicKeyVk[idx];
+        if (UiHotkeyCaptureNamed(g_hwnd, L(L_PANIC_KEY), mods, vk)) {
+          if (PanicKeyExists(mods, vk, idx)) {
+            UiMessage(g_hwnd, L(L_ST_CONFLICT), L(L_APPNAME), UI_OK,
+                      UI_ICON_ERROR);
+          } else {
+            g_cfg.panicKeyMods[idx] = mods;
+            g_cfg.panicKeyVk[idx] = vk;
+            ConfigSave();
+          }
+        }
+      }
+    } else if (id >= IDM_PANIC_REMOVE_0 &&
+               id < IDM_PANIC_REMOVE_0 + MAX_PANIC_KEYS) {
+      int idx = id - IDM_PANIC_REMOVE_0;
+      if (idx < g_cfg.panicKeyCount) {
+        for (int i = idx; i + 1 < g_cfg.panicKeyCount; i++) {
+          g_cfg.panicKeyMods[i] = g_cfg.panicKeyMods[i + 1];
+          g_cfg.panicKeyVk[i] = g_cfg.panicKeyVk[i + 1];
+        }
+        g_cfg.panicKeyCount--;
+        ConfigSave();
+      }
+    } else if (id >= IDM_RECENT_0 && id < IDM_RECENT_0 + 8) {
       size_t idx = id - IDM_RECENT_0;
       if (idx < g_recentFiles.size()) {
         std::wstring p = g_recentFiles[idx];

@@ -142,6 +142,10 @@
         "click_needkey": "Assign a key first",
         "click_hold": "Hold",
         "q_hold": "Hold duration in ms (1-60000)",
-        "hk_clicker": "Clicker"
+        "hk_clicker": "Clicker",
+        "panic_key": "Panic key",
+        "panic_add": "Add panic key...",
+        "panic_change": "Change...",
+        "panic_remove": "Remove"
     }
 }

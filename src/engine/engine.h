@@ -35,6 +35,7 @@ extern std::atomic<bool> g_mouseMovedDuringPlay;
 extern DWORD g_startTick;
 
 bool HotkeyDown(int mods, int vk);
+bool Engine_PanicKeyDown();
 std::wstring FmtHk(int mods, int vk);
 
 void Engine_InitRawInput();

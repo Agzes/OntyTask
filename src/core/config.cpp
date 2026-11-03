@@ -102,6 +102,34 @@ void ConfigLoad() {
       GetPrivateProfileIntW(L"OntyTask", L"panic_esc", 0, ini.c_str());
   g_cfg.panicMouseMove =
       GetPrivateProfileIntW(L"OntyTask", L"panic_mouse", 0, ini.c_str());
+  int panicCount =
+      GetPrivateProfileIntW(L"OntyTask", L"panic_key_count", 0, ini.c_str());
+  if (panicCount < 0)
+    panicCount = 0;
+  if (panicCount > MAX_PANIC_KEYS)
+    panicCount = MAX_PANIC_KEYS;
+  g_cfg.panicKeyCount = 0;
+  for (int i = 0; i < panicCount; i++) {
+    wchar_t km[32], kv[32];
+    swprintf_s(km, L"panic_key_%d_mods", i);
+    swprintf_s(kv, L"panic_key_%d_vk", i);
+    int mods = GetPrivateProfileIntW(L"OntyTask", km, -1, ini.c_str());
+    int vk = GetPrivateProfileIntW(L"OntyTask", kv, -1, ini.c_str());
+    if (mods < 0 || mods > 15 || vk < 1 || vk > 255)
+      continue;
+    bool dup = false;
+    for (int j = 0; j < g_cfg.panicKeyCount; j++) {
+      if (g_cfg.panicKeyMods[j] == mods && g_cfg.panicKeyVk[j] == vk) {
+        dup = true;
+        break;
+      }
+    }
+    if (dup)
+      continue;
+    g_cfg.panicKeyMods[g_cfg.panicKeyCount] = mods;
+    g_cfg.panicKeyVk[g_cfg.panicKeyCount] = vk;
+    g_cfg.panicKeyCount++;
+  }
   g_cfg.autoupdate =
       GetPrivateProfileIntW(L"OntyTask", L"autoupdate", 1, ini.c_str());
   g_cfg.trayIcon =
@@ -223,6 +251,19 @@ void ConfigSave() {
   w(L"panic_scroll", g_cfg.panicScroll);
   w(L"panic_esc", g_cfg.panicEsc);
   w(L"panic_mouse", g_cfg.panicMouseMove);
+  w(L"panic_key_count", g_cfg.panicKeyCount);
+  for (int i = 0; i < MAX_PANIC_KEYS; i++) {
+    wchar_t km[32], kv[32];
+    swprintf_s(km, L"panic_key_%d_mods", i);
+    swprintf_s(kv, L"panic_key_%d_vk", i);
+    if (i < g_cfg.panicKeyCount) {
+      w(km, g_cfg.panicKeyMods[i]);
+      w(kv, g_cfg.panicKeyVk[i]);
+    } else {
+      WritePrivateProfileStringW(L"OntyTask", km, nullptr, ini.c_str());
+      WritePrivateProfileStringW(L"OntyTask", kv, nullptr, ini.c_str());
+    }
+  }
   w(L"autoupdate", g_cfg.autoupdate);
   w(L"tray_icon", g_cfg.trayIcon);
   w(L"ui_icon", g_cfg.uiIcon);

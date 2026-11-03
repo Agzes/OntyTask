@@ -142,6 +142,10 @@
         "click_needkey": "请先指定按键",
         "click_hold": "按住",
         "q_hold": "按住时长（毫秒，1-60000）",
-        "hk_clicker": "点击器"
+        "hk_clicker": "点击器",
+        "panic_key": "紧急停止键",
+        "panic_add": "添加紧急停止快捷键...",
+        "panic_change": "更改...",
+        "panic_remove": "移除"
     }
 }

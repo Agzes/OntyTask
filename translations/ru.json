@@ -142,6 +142,10 @@
         "click_needkey": "Сначала назначьте клавишу",
         "click_hold": "Зажимание",
         "q_hold": "Длительность зажимания в мс (1-60000)",
-        "hk_clicker": "Кликер"
+        "hk_clicker": "Кликер",
+        "panic_key": "Panic-клавиша",
+        "panic_add": "Добавить panic-клавишу...",
+        "panic_change": "Изменить...",
+        "panic_remove": "Удалить"
     }
 }

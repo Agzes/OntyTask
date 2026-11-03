@@ -792,16 +792,24 @@ static LRESULT CALLBACK PlayMsProc(int code, WPARAM w, LPARAM l) {
   return CallNextHookEx(nullptr, code, w, l);
 }
 
-static bool CheckPanic() {
-  if (g_playStop.load())
-    return true;
+bool Engine_PanicKeyDown() {
   if (g_cfg.panicPause && (GetAsyncKeyState(VK_PAUSE) & 0x8000))
     return true;
   if (g_cfg.panicScroll && (GetAsyncKeyState(VK_SCROLL) & 0x8000))
     return true;
   if (g_cfg.panicEsc && (GetAsyncKeyState(VK_ESCAPE) & 0x8000))
     return true;
+  for (int i = 0; i < g_cfg.panicKeyCount; i++) {
+    if (HotkeyDown(g_cfg.panicKeyMods[i], g_cfg.panicKeyVk[i]))
+      return true;
+  }
   return false;
+}
+
+static bool CheckPanic() {
+  if (g_playStop.load())
+    return true;
+  return Engine_PanicKeyDown();
 }
 
 static DWORD WINAPI PlayProc(LPVOID) {
