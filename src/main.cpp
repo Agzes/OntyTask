@@ -101,6 +101,7 @@ enum {
   IDM_UNINSTALL = 196,
   IDM_UPDATE = 197,
   IDM_ABOUT,
+  IDM_DONATE,
   IDM_EXIT,
   IDM_RECENT_0 = 1700,
   IDM_RECENT_7 = 1707,
@@ -1240,6 +1241,7 @@ static void BuildMenu(HMENU root) {
     AddMI(root, IDM_UPDATE, L(L_UPDATE_AVAIL), 0xE777);
   }
   AddMI(root, IDM_ABOUT, L(L_ABOUT), 0xE946);
+  AddMI(root, IDM_DONATE, L(L_DONATE), 0xEB51);
   AddMI(root, IDM_EXIT, L(L_EXIT), 0xE711);
 }
 
@@ -1784,6 +1786,9 @@ static void DoCmd(int id) {
     break;
   case IDM_ABOUT:
     ShowAbout();
+    break;
+  case IDM_DONATE:
+    ShellExecuteW(g_hwnd, L"open", URL_DONATE, nullptr, nullptr, SW_SHOWNORMAL);
     break;
   case IDM_EXIT:
     ConfigSave();
@@ -2554,7 +2559,11 @@ static RECT AbCloseRect() {
   return r;
 }
 static RECT AbUpdRect() {
-  RECT r = {0, AB_H - 58, AB_W, AB_H - 32};
+  RECT r = {0, AB_H - 58, AB_W * 2 / 3, AB_H - 32};
+  return r;
+}
+static RECT AbDonRect() {
+  RECT r = {AB_W * 2 / 3, AB_H - 58, AB_W, AB_H - 32};
   return r;
 }
 static RECT AbGhRect() {
@@ -2666,7 +2675,7 @@ static LRESULT CALLBACK AboutProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     Gdiplus::Font f18b(mem, ThFont(18, true));
     Gdiplus::Font f10(mem, ThFont(10));
     Gdiplus::Font f9(mem, ThFont(9));
-    Gdiplus::Font f9b(mem, ThFont(9, true));
+    Gdiplus::Font f8b(mem, ThFont(8, true));
     Gdiplus::SolidBrush txt(GdiCol(ThText()));
     Gdiplus::SolidBrush dim(GdiCol(ThDim()));
     Gdiplus::SolidBrush ac(GdiCol(ThAccent()));
@@ -2692,7 +2701,7 @@ static LRESULT CALLBACK AboutProc(HWND h, UINT m, WPARAM w, LPARAM l) {
                  Gdiplus::RectF(18.0f, (REAL)dy + 6, (REAL)(AB_W - 36), 30.0f),
                  &SfL(), &dim);
 
-    RECT ru = AbUpdRect();
+    RECT ru = AbUpdRect(), rd = AbDonRect();
     if (hover == 4) {
       g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
       Gdiplus::SolidBrush hb(Gdiplus::Color(35, 90, 90, 90));
@@ -2700,10 +2709,19 @@ static LRESULT CALLBACK AboutProc(HWND h, UINT m, WPARAM w, LPARAM l) {
                       (REAL)(ru.right - ru.left), (REAL)(ru.bottom - ru.top));
       g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
     }
+    if (hover == 6) {
+      g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
+      Gdiplus::SolidBrush hb(Gdiplus::Color(35, 90, 90, 90));
+      g.FillRectangle(&hb, (REAL)rd.left, (REAL)rd.top,
+                      (REAL)(rd.right - rd.left), (REAL)(rd.bottom - rd.top));
+      g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+    }
     g.FillRectangle(&bb, (REAL)ru.left, (REAL)ru.top,
-                    (REAL)(ru.right - ru.left), 1.0f);
+                    (REAL)(rd.right - ru.left), 1.0f);
     g.FillRectangle(&bb, (REAL)ru.left, (REAL)(ru.bottom - 1),
-                    (REAL)(ru.right - ru.left), 1.0f);
+                    (REAL)(rd.right - ru.left), 1.0f);
+    g.FillRectangle(&bb, (REAL)rd.left, (REAL)rd.top, 1.0f,
+                    (REAL)(rd.bottom - rd.top));
     const wchar_t *upTxt = L(L_UPDATE);
     int ust = Update_State();
     if (ust == UR_LATEST)
@@ -2721,6 +2739,12 @@ static LRESULT CALLBACK AboutProc(HWND h, UINT m, WPARAM w, LPARAM l) {
                                 (REAL)(ru.right - ru.left),
                                 (REAL)(ru.bottom - ru.top)),
                  &SfC(), &ufb);
+    Gdiplus::SolidBrush dnfb(GdiCol(ThAccent()));
+    g.DrawString(L(L_DONATE), -1, &f9,
+                 Gdiplus::RectF((REAL)rd.left, (REAL)rd.top,
+                                (REAL)(rd.right - rd.left),
+                                (REAL)(rd.bottom - rd.top)),
+                 &SfC(), &dnfb);
     RECT rg = AbGhRect(), rl2 = AbLiRect(), rcr = AbCrRect();
     Gdiplus::Color ghc = light
                              ? GdiCol(hover == 1 ? ThHover2() : ThBg2())
@@ -2753,19 +2777,20 @@ static LRESULT CALLBACK AboutProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     static Gdiplus::StringFormat sfA;
     sfA.SetAlignment(Gdiplus::StringAlignmentCenter);
     sfA.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+    sfA.SetFormatFlags(Gdiplus::StringFormatFlagsNoWrap);
     COLORREF btnTxt = light ? ThText() : RGB(255, 255, 255);
     Gdiplus::SolidBrush btb(GdiCol(btnTxt));
-    g.DrawString(L(L_GITHUB), -1, &f9b,
+    g.DrawString(L(L_GITHUB), -1, &f8b,
                  Gdiplus::RectF((REAL)rg.left, (REAL)rg.top,
                                 (REAL)(rg.right - rg.left),
                                 (REAL)(rg.bottom - rg.top)),
                  &sfA, &btb);
-    g.DrawString(L(L_LICENSE), -1, &f9b,
+    g.DrawString(L(L_LICENSE), -1, &f8b,
                  Gdiplus::RectF((REAL)rl2.left, (REAL)rl2.top,
                                 (REAL)(rl2.right - rl2.left),
                                 (REAL)(rl2.bottom - rl2.top)),
                  &sfA, &btb);
-    g.DrawString(L(L_CREDITS), -1, &f9b,
+    g.DrawString(L(L_CREDITS), -1, &f8b,
                  Gdiplus::RectF((REAL)rcr.left, (REAL)rcr.top,
                                 (REAL)(rcr.right - rcr.left),
                                 (REAL)(rcr.bottom - rcr.top)),
@@ -2780,12 +2805,13 @@ static LRESULT CALLBACK AboutProc(HWND h, UINT m, WPARAM w, LPARAM l) {
   case WM_MOUSEMOVE: {
     POINT pt = {GET_X_LPARAM(l), GET_Y_LPARAM(l)};
     RECT rg = AbGhRect(), rl = AbLiRect(), cr = AbCrRect(), rcl = AbCloseRect(),
-         ru = AbUpdRect();
+         ru = AbUpdRect(), rd = AbDonRect();
     int nh = PtInRect(&rg, pt)    ? 1
              : PtInRect(&rl, pt)  ? 2
              : PtInRect(&cr, pt)  ? 5
              : PtInRect(&rcl, pt) ? 3
              : PtInRect(&ru, pt)  ? 4
+             : PtInRect(&rd, pt)  ? 6
                                   : 0;
     if (d && nh != d->hover) {
       d->hover = nh;
@@ -2814,6 +2840,8 @@ static LRESULT CALLBACK AboutProc(HWND h, UINT m, WPARAM w, LPARAM l) {
       ShellExecuteW(h, L"open", URL_LICENSE, nullptr, nullptr, SW_SHOWNORMAL);
     else if (d->hover == 5)
       ShellExecuteW(h, L"open", URL_CREDITS, nullptr, nullptr, SW_SHOWNORMAL);
+    else if (d->hover == 6)
+      ShellExecuteW(h, L"open", URL_DONATE, nullptr, nullptr, SW_SHOWNORMAL);
     else if (d->hover == 3) {
       d->done = true;
       DestroyWindow(h);

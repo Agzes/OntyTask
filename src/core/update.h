@@ -12,5 +12,6 @@ extern const wchar_t *URL_GITHUB;
 extern const wchar_t *URL_ISSUE;
 extern const wchar_t *URL_LICENSE;
 extern const wchar_t *URL_CREDITS;
+extern const wchar_t *URL_DONATE;
 extern const wchar_t *APP_VERSION;
 extern const wchar_t *APP_VERSION_RAW;

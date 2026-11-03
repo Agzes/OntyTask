@@ -105,6 +105,7 @@ static const char *kKeys[L_COUNT] = {
     "new_macro",
     "developed",
     "credits",
+    "donate",
     "lic_line",
     "tray_icon",
     "tray_auto",

@@ -15,6 +15,7 @@ const wchar_t *URL_LICENSE =
     L"https://github.com/Agzes/OntyTask/blob/main/LICENSE";
 const wchar_t *URL_CREDITS =
     L"https://github.com/Agzes/OntyTask/blob/main/CREDITS.md";
+const wchar_t *URL_DONATE = L"https://agzes.github.io/donate";
 
 static const int CUR_VERSION = 100000;
 
