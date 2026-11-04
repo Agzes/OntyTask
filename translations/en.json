@@ -162,6 +162,11 @@
         "click_hold_key": "Click while held",
         "seconds": "s",
         "off": "Off",
-        "click_hold_hint": "Start the clicker, then hold the trigger"
+        "click_hold_hint": "Start the clicker, then hold the trigger",
+        "rec_countdown": "Countdown",
+        "q_rec_countdown": "Countdown before recording in seconds (0 = off)",
+        "countdown": "Recording in %d...",
+        "q_play_countdown": "Countdown before playback in seconds (0 = off)",
+        "countdown_play": "Playback in %d..."
     }
 }

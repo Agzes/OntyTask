@@ -179,6 +179,11 @@ static const char *kKeys[L_COUNT] = {
     "seconds",
     "off",
     "click_hold_hint",
+    "rec_countdown",
+    "q_rec_countdown",
+    "countdown",
+    "q_play_countdown",
+    "countdown_play",
 };
 
 static bool ReadResourceText(int id, std::string &out) {

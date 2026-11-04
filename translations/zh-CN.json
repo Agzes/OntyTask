@@ -162,6 +162,11 @@
         "click_hold_key": "按住时点击",
         "seconds": "秒",
         "off": "关闭",
-        "click_hold_hint": "先启动点击器，然后按住触发键"
+        "click_hold_hint": "先启动点击器，然后按住触发键",
+        "rec_countdown": "倒计时",
+        "q_rec_countdown": "录制前倒计时（秒，0 = 关闭）",
+        "countdown": "%d 秒后开始录制...",
+        "q_play_countdown": "播放前倒计时（秒，0 = 关闭）",
+        "countdown_play": "%d 秒后开始播放..."
     }
 }

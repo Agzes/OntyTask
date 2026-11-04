@@ -135,6 +135,8 @@ enum {
   IDM_CLICK_HOLD_M,
   IDM_CLICK_HOLD_X1,
   IDM_CLICK_HOLD_X2,
+  IDM_REC_COUNTDOWN = 305,
+  IDM_PLAY_COUNTDOWN,
   IDM_PANIC_ADD = 230,
   IDM_PANIC_CHANGE_0 = 231,
   IDM_PANIC_REMOVE_0 = 231 + MAX_PANIC_KEYS,
@@ -168,6 +170,8 @@ static HICON g_trayIcon = nullptr;
 static UINT g_msgTaskbar = 0;
 static bool g_closeAfterPlay = false;
 static bool g_clickPrev = false;
+static int g_recCountdown = 0;
+static int g_playCountdown = 0;
 
 static void DoCmd(int id);
 static bool InputDialog(const wchar_t *prompt, int init, int minv, int maxv,
@@ -1726,6 +1730,24 @@ static void BuildMenu(HMENU root) {
   IconLast(root, 0xE8EE);
   AppendMenuW(root, MF_SEPARATOR, 0, nullptr);
 
+  wchar_t cdStr[96];
+  HMENU cd = CreatePopupMenu();
+  if (g_cfg.recordCountdown > 0)
+    swprintf_s(cdStr, L"%s: %d %s...", L(L_HK_REC), g_cfg.recordCountdown,
+               L(L_SECONDS));
+  else
+    swprintf_s(cdStr, L"%s: %s...", L(L_HK_REC), L(L_OFF));
+  AddMI(cd, IDM_REC_COUNTDOWN, cdStr, 0xE823);
+  GfxMenuIcon(cd, IDM_REC_COUNTDOWN, GfxDotBitmap(g_menuIcon));
+  if (g_cfg.playCountdown > 0)
+    swprintf_s(cdStr, L"%s: %d %s...", L(L_HK_PLAY), g_cfg.playCountdown,
+               L(L_SECONDS));
+  else
+    swprintf_s(cdStr, L"%s: %s...", L(L_HK_PLAY), L(L_OFF));
+  AddMI(cd, IDM_PLAY_COUNTDOWN, cdStr, 0xE768);
+  AppendMenuW(root, MF_POPUP, (UINT_PTR)cd, L(L_REC_COUNTDOWN));
+  IconLast(root, 0xE823);
+
   AddCheckWithIcon(root, IDM_TOPMOST, L(L_TOPMOST), g_cfg.topmost != 0, 0xE718);
 
   HMENU hk = CreatePopupMenu();
@@ -1844,6 +1866,108 @@ static void EnsureUiTimer() {
   SetTimer(g_hwnd, 16, 15, nullptr);
 }
 
+static void CancelRecordCountdown() {
+  if (g_recCountdown <= 0)
+    return;
+  g_recCountdown = 0;
+  KillTimer(g_hwnd, 4);
+  StatusHide();
+  InvalidateRect(g_hwnd, nullptr, FALSE);
+}
+
+static void RecordCountdownTick() {
+  if (g_recCountdown <= 0) {
+    KillTimer(g_hwnd, 4);
+    return;
+  }
+  g_recCountdown--;
+  if (g_recCountdown <= 0) {
+    KillTimer(g_hwnd, 4);
+    if (Engine_Record()) {
+      g_lastFile.clear();
+      g_dirty = true;
+      StatusPersistent(EngineStatusText().c_str());
+      if (g_cfg.autoMinimize)
+        ShowWindow(g_hwnd, SW_HIDE);
+    }
+    return;
+  }
+  wchar_t b[128];
+  swprintf_s(b, L(L_COUNTDOWN), g_recCountdown);
+  StatusShow(b, 1200);
+  InvalidateRect(g_hwnd, nullptr, FALSE);
+}
+
+static void StartRecordWithCountdown() {
+  if (g_cfg.recordCountdown > 0) {
+    g_recCountdown = g_cfg.recordCountdown;
+    wchar_t b[128];
+    swprintf_s(b, L(L_COUNTDOWN), g_recCountdown);
+    StatusShow(b, 1200);
+    SetTimer(g_hwnd, 4, 1000, nullptr);
+    if (g_cfg.autoMinimize)
+      ShowWindow(g_hwnd, SW_HIDE);
+    InvalidateRect(g_hwnd, nullptr, FALSE);
+    return;
+  }
+  if (Engine_Record()) {
+    g_lastFile.clear();
+    g_dirty = true;
+    StatusPersistent(EngineStatusText().c_str());
+    if (g_cfg.autoMinimize)
+      ShowWindow(g_hwnd, SW_HIDE);
+  }
+}
+
+static void CancelPlayCountdown() {
+  if (g_playCountdown <= 0)
+    return;
+  g_playCountdown = 0;
+  KillTimer(g_hwnd, 5);
+  StatusHide();
+  InvalidateRect(g_hwnd, nullptr, FALSE);
+}
+
+static void PlayCountdownTick() {
+  if (g_playCountdown <= 0) {
+    KillTimer(g_hwnd, 5);
+    return;
+  }
+  g_playCountdown--;
+  if (g_playCountdown <= 0) {
+    KillTimer(g_hwnd, 5);
+    if (Engine_Play()) {
+      StatusPersistent(EngineStatusText().c_str());
+      if (g_cfg.autoMinimize)
+        ShowWindow(g_hwnd, SW_HIDE);
+    }
+    return;
+  }
+  wchar_t b[128];
+  swprintf_s(b, L(L_COUNTDOWN_PLAY), g_playCountdown);
+  StatusShow(b, 1200);
+  InvalidateRect(g_hwnd, nullptr, FALSE);
+}
+
+static void StartPlayWithCountdown() {
+  if (g_cfg.playCountdown > 0) {
+    g_playCountdown = g_cfg.playCountdown;
+    wchar_t b[128];
+    swprintf_s(b, L(L_COUNTDOWN_PLAY), g_playCountdown);
+    StatusShow(b, 1200);
+    SetTimer(g_hwnd, 5, 1000, nullptr);
+    if (g_cfg.autoMinimize)
+      ShowWindow(g_hwnd, SW_HIDE);
+    InvalidateRect(g_hwnd, nullptr, FALSE);
+    return;
+  }
+  if (Engine_Play()) {
+    StatusPersistent(EngineStatusText().c_str());
+    if (g_cfg.autoMinimize)
+      ShowWindow(g_hwnd, SW_HIDE);
+  }
+}
+
 static void SnapUi() {
   g_panelFade = g_panelTarget;
   g_extraH = g_extraTarget;
@@ -1858,6 +1982,8 @@ static void SetMode(int mode) {
   mode = mode ? 1 : 0;
   if (mode == g_cfg.mode)
     return;
+  CancelRecordCountdown();
+  CancelPlayCountdown();
   int st = g_state.load();
   if (st == ST_REC)
     Engine_RecordStop();
@@ -2141,6 +2267,11 @@ static void DoCmd(int id) {
   case IDM_REC:
     if (ClickerMode())
       break;
+    CancelPlayCountdown();
+    if (g_recCountdown > 0) {
+      CancelRecordCountdown();
+      break;
+    }
     if (g_state.load() == ST_REC) {
       Engine_RecordStop();
       g_lastFile.clear();
@@ -2151,16 +2282,15 @@ static void DoCmd(int id) {
       }
     } else if (g_state.load() == ST_PLAY)
       Engine_PlayStop();
-    else {
-      if (Engine_Record()) {
-        g_lastFile.clear();
-        g_dirty = true;
-        if (g_cfg.autoMinimize)
-          ShowWindow(g_hwnd, SW_HIDE);
-      }
-    }
+    else
+      StartRecordWithCountdown();
     break;
   case IDM_PLAY:
+    if (g_playCountdown > 0) {
+      CancelPlayCountdown();
+      break;
+    }
+    CancelRecordCountdown();
     if (ClickerMode()) {
       if (Clicker_IsRunning())
         StopClicker(true);
@@ -2172,12 +2302,8 @@ static void DoCmd(int id) {
       Engine_PlayStop();
     else if (g_state.load() == ST_REC)
       Engine_RecordStop();
-    else {
-      if (Engine_Play()) {
-        if (g_cfg.autoMinimize)
-          ShowWindow(g_hwnd, SW_HIDE);
-      }
-    }
+    else
+      StartPlayWithCountdown();
     break;
   case IDM_CLICK_START:
     StartClicker();
@@ -2353,6 +2479,24 @@ static void DoCmd(int id) {
     ConfigSave();
     InvalidateRect(g_hwnd, nullptr, FALSE);
     break;
+  case IDM_REC_COUNTDOWN: {
+    int v = g_cfg.recordCountdown;
+    if (InputDialog(L(L_Q_REC_COUNTDOWN), v, 0, 60, v)) {
+      g_cfg.recordCountdown = v;
+      ConfigSave();
+      InvalidateRect(g_hwnd, nullptr, FALSE);
+    }
+    break;
+  }
+  case IDM_PLAY_COUNTDOWN: {
+    int v = g_cfg.playCountdown;
+    if (InputDialog(L(L_Q_PLAY_COUNTDOWN), v, 0, 60, v)) {
+      g_cfg.playCountdown = v;
+      ConfigSave();
+      InvalidateRect(g_hwnd, nullptr, FALSE);
+    }
+    break;
+  }
   case IDM_HKCLICK: {
     int mods = 0, vk = 0;
     if (UiHotkeyCaptureNamed(g_hwnd, L(L_HK_CLICKER), mods, vk)) {
@@ -3088,6 +3232,10 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
       Engine_FlushMoves();
     else if (w == 16)
       UiAnimateTick();
+    else if (w == 4)
+      RecordCountdownTick();
+    else if (w == 5)
+      PlayCountdownTick();
     return 0;
   case WM_HOTKEY:
     if (w == HK_ID_REC)
@@ -3302,6 +3450,8 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
   case WM_DESTROY:
     KillTimer(hwnd, 1);
     KillTimer(hwnd, 2);
+    KillTimer(hwnd, 4);
+    KillTimer(hwnd, 5);
     KillTimer(hwnd, 16);
     Clicker_Stop();
     Engine_Shutdown();

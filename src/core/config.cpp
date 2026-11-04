@@ -86,6 +86,18 @@ void ConfigLoad() {
     g_cfg.loopDelay = 0;
   if (g_cfg.loopDelay > 3600000)
     g_cfg.loopDelay = 3600000;
+  g_cfg.recordCountdown =
+      GetPrivateProfileIntW(L"OntyTask", L"record_countdown", 0, ini.c_str());
+  if (g_cfg.recordCountdown < 0)
+    g_cfg.recordCountdown = 0;
+  if (g_cfg.recordCountdown > 60)
+    g_cfg.recordCountdown = 60;
+  g_cfg.playCountdown =
+      GetPrivateProfileIntW(L"OntyTask", L"play_countdown", 0, ini.c_str());
+  if (g_cfg.playCountdown < 0)
+    g_cfg.playCountdown = 0;
+  if (g_cfg.playCountdown > 60)
+    g_cfg.playCountdown = 60;
   g_cfg.continuous =
       GetPrivateProfileIntW(L"OntyTask", L"continuous", 0, ini.c_str());
   g_cfg.topmost =
@@ -287,6 +299,8 @@ void ConfigSave() {
   WritePrivateProfileStringW(L"OntyTask", L"speed_custom_val", b, ini.c_str());
   w(L"loops", g_cfg.loops);
   w(L"loop_delay", g_cfg.loopDelay);
+  w(L"record_countdown", g_cfg.recordCountdown);
+  w(L"play_countdown", g_cfg.playCountdown);
   w(L"continuous", g_cfg.continuous);
   w(L"topmost", g_cfg.topmost);
   w(L"theme", g_cfg.theme);

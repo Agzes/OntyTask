@@ -171,6 +171,11 @@ If you're creating a translation for another language, this table shows you wher
 | `seconds`            | s                                                                        | с                                                                              | Clicker menu              | Seconds unit             |
 | `off`                | Off                                                                      | Выкл.                                                                          | Clicker menu              | Disable hold trigger     |
 | `click_hold_hint`    | Start the clicker, then hold the trigger                                 | Включите кликер, затем удерживайте триггер                                     | Clicker menu              | Hold trigger hint        |
+| `rec_countdown`      | Countdown                                                                | Обратный отсчёт                                                                | Menu setting              | Recording delay          |
+| `q_rec_countdown`    | Countdown before recording in seconds (0 = off)                          | Отсчёт перед записью в секундах (0 = выкл.)                                    | Input dialog              | Countdown prompt         |
+| `countdown`          | Recording in %d...                                                       | Запись через %d...                                                             | Status notification       | Countdown text           |
+| `q_play_countdown`   | Countdown before playback in seconds (0 = off)                           | Отсчёт перед воспроизведением, сек (0 = выкл.)                                 | Input dialog              | Playback prompt          |
+| `countdown_play`     | Playback in %d...                                                        | Воспроизведение через %d...                                                    | Status notification       | Countdown text           |
 
 ---
 
