@@ -149,6 +149,19 @@
         "panic_remove": "Remove",
         "tray_enable": "System tray",
         "loop_delay": "Delay between loops",
-        "q_loop_delay": "Delay between loops in ms (0-3600000)"
+        "q_loop_delay": "Delay between loops in ms (0-3600000)",
+        "click_advanced": "Advanced",
+        "click_jitter": "Interval jitter",
+        "q_click_jitter": "Interval jitter in percent (0-90)",
+        "click_limit": "Click limit",
+        "q_click_limit": "Maximum number of clicks (0 = unlimited)",
+        "click_time_limit": "Time limit",
+        "q_click_time_limit": "Time limit in seconds (0 = unlimited)",
+        "click_jiggle": "Jiggler radius",
+        "q_click_jiggle": "Random cursor offset in px (0 = off)",
+        "click_hold_key": "Click while held",
+        "seconds": "s",
+        "off": "Off",
+        "click_hold_hint": "Start the clicker, then hold the trigger"
     }
 }

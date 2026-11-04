@@ -124,6 +124,17 @@ enum {
   IDM_CLICK_KEY,
   IDM_HKCLICK,
   IDM_TRAY_ENABLE = 219,
+  IDM_CLICK_JITTER = 220,
+  IDM_CLICK_LIMIT,
+  IDM_CLICK_TIME_LIMIT,
+  IDM_CLICK_JIGGLE,
+  IDM_CLICK_HOLD_KEY,
+  IDM_CLICK_HOLD_CLEAR,
+  IDM_CLICK_HOLD_L = 300,
+  IDM_CLICK_HOLD_R,
+  IDM_CLICK_HOLD_M,
+  IDM_CLICK_HOLD_X1,
+  IDM_CLICK_HOLD_X2,
   IDM_PANIC_ADD = 230,
   IDM_PANIC_CHANGE_0 = 231,
   IDM_PANIC_REMOVE_0 = 231 + MAX_PANIC_KEYS,
@@ -156,6 +167,7 @@ static NOTIFYICONDATAW g_nid = {};
 static HICON g_trayIcon = nullptr;
 static UINT g_msgTaskbar = 0;
 static bool g_closeAfterPlay = false;
+static bool g_clickPrev = false;
 
 static void DoCmd(int id);
 static bool InputDialog(const wchar_t *prompt, int init, int minv, int maxv,
@@ -342,7 +354,11 @@ static std::wstring ClickValueText() {
 
 static std::wstring ClickIntervalText() {
   wchar_t b[64];
-  swprintf_s(b, L"%lld %s", g_cfg.clickInterval, L(L_MS));
+  if (g_cfg.clickJitter > 0)
+    swprintf_s(b, L"%lld %s \u00B1%d%%", g_cfg.clickInterval, L(L_MS),
+               g_cfg.clickJitter);
+  else
+    swprintf_s(b, L"%lld %s", g_cfg.clickInterval, L(L_MS));
   return b;
 }
 
@@ -1580,6 +1596,44 @@ static void BuildClickerMenu(HMENU root) {
     swprintf_s(hb, L"%s: %d %s...", L(L_CLICK_HOLD), g_cfg.clickHold, L(L_MS));
     AddMI(root, IDM_CLICK_HOLD, hb, 0xE769);
   }
+  HMENU adv = CreatePopupMenu();
+  wchar_t ab[128];
+  swprintf_s(ab, L"%s: \u00B1%d%%...", L(L_CLICK_JITTER), g_cfg.clickJitter);
+  AddMI(adv, IDM_CLICK_JITTER, ab, 0xE8AB);
+  if (g_cfg.clickLimit > 0)
+    swprintf_s(ab, L"%s: %d...", L(L_CLICK_LIMIT), g_cfg.clickLimit);
+  else
+    swprintf_s(ab, L"%s: \u221E...", L(L_CLICK_LIMIT));
+  AddMI(adv, IDM_CLICK_LIMIT, ab, 0xE7C1);
+  if (g_cfg.clickTimeLimit > 0)
+    swprintf_s(ab, L"%s: %d %s...", L(L_CLICK_TIME_LIMIT), g_cfg.clickTimeLimit,
+               L(L_SECONDS));
+  else
+    swprintf_s(ab, L"%s: \u221E...", L(L_CLICK_TIME_LIMIT));
+  AddMI(adv, IDM_CLICK_TIME_LIMIT, ab, 0xE823);
+  swprintf_s(ab, L"%s: %d %s...", L(L_CLICK_JIGGLE), g_cfg.clickJiggle, L"px");
+  AddMI(adv, IDM_CLICK_JIGGLE, ab, 0xE962);
+  HMENU hm = CreatePopupMenu();
+  AppendMenuW(hm, MF_STRING | MF_GRAYED, 0, L(L_CLICK_HOLD_HINT));
+  AppendMenuW(hm, MF_SEPARATOR, 0, nullptr);
+  AddCheck(hm, IDM_CLICK_HOLD_L, L(L_CLICK_LEFT), g_cfg.clickHoldMouse == 1);
+  AddCheck(hm, IDM_CLICK_HOLD_R, L(L_CLICK_RIGHT), g_cfg.clickHoldMouse == 2);
+  AddCheck(hm, IDM_CLICK_HOLD_M, L(L_CLICK_MIDDLE), g_cfg.clickHoldMouse == 3);
+  AddCheck(hm, IDM_CLICK_HOLD_X1, L"X1", g_cfg.clickHoldMouse == 4);
+  AddCheck(hm, IDM_CLICK_HOLD_X2, L"X2", g_cfg.clickHoldMouse == 5);
+  AppendMenuW(hm, MF_SEPARATOR, 0, nullptr);
+  std::wstring holdKey = std::wstring(L(L_CLICK_KEY)) + L": " +
+                         (g_cfg.clickHoldKeyVk ? FmtHk(g_cfg.clickHoldKeyMods,
+                                                       g_cfg.clickHoldKeyVk)
+                                               : L"--") +
+                         L"...";
+  AddMI(hm, IDM_CLICK_HOLD_KEY, holdKey.c_str(), 0xE765);
+  AppendMenuW(hm, MF_SEPARATOR, 0, nullptr);
+  AddMI(hm, IDM_CLICK_HOLD_CLEAR, L(L_OFF), 0xE894);
+  AppendMenuW(adv, MF_POPUP, (UINT_PTR)hm, L(L_CLICK_HOLD_KEY));
+  IconLast(adv, 0xE765);
+  AppendMenuW(root, MF_POPUP, (UINT_PTR)adv, L(L_CLICK_ADVANCED));
+  IconLast(root, 0xE712);
   HMENU hk = CreatePopupMenu();
   std::wstring hkItem = std::wstring(L(L_HK_CLICKER)) + L":   " +
                         FmtHk(g_cfg.playMods, g_cfg.playVk);
@@ -1840,6 +1894,13 @@ static void StartClicker() {
   p.hold = g_cfg.clickHold;
   p.keyMods = g_cfg.clickKeyMods;
   p.keyVk = g_cfg.clickKeyVk;
+  p.jitter = g_cfg.clickJitter;
+  p.limit = g_cfg.clickLimit;
+  p.timeLimit = g_cfg.clickTimeLimit;
+  p.jiggle = g_cfg.clickJiggle;
+  p.holdKeyMods = g_cfg.clickHoldKeyMods;
+  p.holdKeyVk = g_cfg.clickHoldKeyVk;
+  p.holdMouse = g_cfg.clickHoldMouse;
   Clicker_Start(p);
   if (g_cfg.autoMinimize)
     ShowWindow(g_hwnd, SW_HIDE);
@@ -2031,6 +2092,9 @@ static void StatusTick() {
   std::wstring s = EngineStatusText();
   int st = g_state.load();
   bool click = Clicker_IsRunning();
+  if (g_clickPrev && !click && Clicker_StopReason() > 0)
+    StatusShow(L(L_CLICK_STOPPED), 2000);
+  g_clickPrev = click;
   if (st == ST_REC || st == ST_PLAY || click) {
     if (StatusIsPersistent())
       StatusUpdate(s.c_str());
@@ -2212,6 +2276,83 @@ static void DoCmd(int id) {
     }
     break;
   }
+  case IDM_CLICK_JITTER: {
+    if (Clicker_IsRunning())
+      break;
+    int v = g_cfg.clickJitter;
+    if (InputDialog(L(L_Q_CLICK_JITTER), v, 0, 90, v)) {
+      g_cfg.clickJitter = v;
+      ConfigSave();
+      InvalidateRect(g_hwnd, nullptr, FALSE);
+    }
+    break;
+  }
+  case IDM_CLICK_LIMIT: {
+    if (Clicker_IsRunning())
+      break;
+    int v = g_cfg.clickLimit;
+    if (InputDialog(L(L_Q_CLICK_LIMIT), v, 0, 1000000000, v)) {
+      g_cfg.clickLimit = v;
+      ConfigSave();
+      InvalidateRect(g_hwnd, nullptr, FALSE);
+    }
+    break;
+  }
+  case IDM_CLICK_TIME_LIMIT: {
+    if (Clicker_IsRunning())
+      break;
+    int v = g_cfg.clickTimeLimit;
+    if (InputDialog(L(L_Q_CLICK_TIME_LIMIT), v, 0, 86400, v)) {
+      g_cfg.clickTimeLimit = v;
+      ConfigSave();
+      InvalidateRect(g_hwnd, nullptr, FALSE);
+    }
+    break;
+  }
+  case IDM_CLICK_JIGGLE: {
+    if (Clicker_IsRunning())
+      break;
+    int v = g_cfg.clickJiggle;
+    if (InputDialog(L(L_Q_CLICK_JIGGLE), v, 0, 500, v)) {
+      g_cfg.clickJiggle = v;
+      ConfigSave();
+      InvalidateRect(g_hwnd, nullptr, FALSE);
+    }
+    break;
+  }
+  case IDM_CLICK_HOLD_KEY: {
+    if (Clicker_IsRunning())
+      break;
+    int mods = 0, vk = 0;
+    if (UiKeyCapture(g_hwnd, L(L_KEY_PRESS), mods, vk)) {
+      g_cfg.clickHoldKeyMods = mods;
+      g_cfg.clickHoldKeyVk = vk;
+      g_cfg.clickHoldMouse = 0;
+      ConfigSave();
+      StatusShow(L(L_CLICK_HOLD_HINT), 3500);
+      InvalidateRect(g_hwnd, nullptr, FALSE);
+    }
+    break;
+  }
+  case IDM_CLICK_HOLD_L:
+  case IDM_CLICK_HOLD_R:
+  case IDM_CLICK_HOLD_M:
+  case IDM_CLICK_HOLD_X1:
+  case IDM_CLICK_HOLD_X2:
+    g_cfg.clickHoldMouse = id - IDM_CLICK_HOLD_L + 1;
+    g_cfg.clickHoldKeyMods = 0;
+    g_cfg.clickHoldKeyVk = 0;
+    ConfigSave();
+    StatusShow(L(L_CLICK_HOLD_HINT), 3500);
+    InvalidateRect(g_hwnd, nullptr, FALSE);
+    break;
+  case IDM_CLICK_HOLD_CLEAR:
+    g_cfg.clickHoldKeyMods = 0;
+    g_cfg.clickHoldKeyVk = 0;
+    g_cfg.clickHoldMouse = 0;
+    ConfigSave();
+    InvalidateRect(g_hwnd, nullptr, FALSE);
+    break;
   case IDM_HKCLICK: {
     int mods = 0, vk = 0;
     if (UiHotkeyCaptureNamed(g_hwnd, L(L_HK_CLICKER), mods, vk)) {

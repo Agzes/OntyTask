@@ -189,6 +189,42 @@ void ConfigLoad() {
       GetPrivateProfileIntW(L"OntyTask", L"click_key_vk", 0, ini.c_str());
   if (g_cfg.clickKeyVk < 0 || g_cfg.clickKeyVk > 255)
     g_cfg.clickKeyVk = 0;
+  g_cfg.clickJitter =
+      GetPrivateProfileIntW(L"OntyTask", L"click_jitter", 0, ini.c_str());
+  if (g_cfg.clickJitter < 0)
+    g_cfg.clickJitter = 0;
+  if (g_cfg.clickJitter > 90)
+    g_cfg.clickJitter = 90;
+  g_cfg.clickLimit =
+      GetPrivateProfileIntW(L"OntyTask", L"click_limit", 0, ini.c_str());
+  if (g_cfg.clickLimit < 0)
+    g_cfg.clickLimit = 0;
+  if (g_cfg.clickLimit > 1000000000)
+    g_cfg.clickLimit = 1000000000;
+  g_cfg.clickTimeLimit =
+      GetPrivateProfileIntW(L"OntyTask", L"click_time_limit", 0, ini.c_str());
+  if (g_cfg.clickTimeLimit < 0)
+    g_cfg.clickTimeLimit = 0;
+  if (g_cfg.clickTimeLimit > 86400)
+    g_cfg.clickTimeLimit = 86400;
+  g_cfg.clickJiggle =
+      GetPrivateProfileIntW(L"OntyTask", L"click_jiggle", 0, ini.c_str());
+  if (g_cfg.clickJiggle < 0)
+    g_cfg.clickJiggle = 0;
+  if (g_cfg.clickJiggle > 500)
+    g_cfg.clickJiggle = 500;
+  g_cfg.clickHoldKeyMods =
+      GetPrivateProfileIntW(L"OntyTask", L"click_hold_mods", 0, ini.c_str());
+  if (g_cfg.clickHoldKeyMods < 0 || g_cfg.clickHoldKeyMods > 15)
+    g_cfg.clickHoldKeyMods = 0;
+  g_cfg.clickHoldKeyVk =
+      GetPrivateProfileIntW(L"OntyTask", L"click_hold_vk", 0, ini.c_str());
+  if (g_cfg.clickHoldKeyVk < 0 || g_cfg.clickHoldKeyVk > 255)
+    g_cfg.clickHoldKeyVk = 0;
+  g_cfg.clickHoldMouse =
+      GetPrivateProfileIntW(L"OntyTask", L"click_hold_mouse", 0, ini.c_str());
+  if (g_cfg.clickHoldMouse < 0 || g_cfg.clickHoldMouse > 5)
+    g_cfg.clickHoldMouse = 0;
   if (g_cfg.speed < -5 || g_cfg.speed > 1000)
     g_cfg.speed = 1;
   if (g_cfg.loops < 1 || g_cfg.loops > 99999)
@@ -289,6 +325,13 @@ void ConfigSave() {
   w(L"click_hold", g_cfg.clickHold);
   w(L"click_key_mods", g_cfg.clickKeyMods);
   w(L"click_key_vk", g_cfg.clickKeyVk);
+  w(L"click_jitter", g_cfg.clickJitter);
+  w(L"click_limit", g_cfg.clickLimit);
+  w(L"click_time_limit", g_cfg.clickTimeLimit);
+  w(L"click_jiggle", g_cfg.clickJiggle);
+  w(L"click_hold_mods", g_cfg.clickHoldKeyMods);
+  w(L"click_hold_vk", g_cfg.clickHoldKeyVk);
+  w(L"click_hold_mouse", g_cfg.clickHoldMouse);
   w(L"record_mods", g_cfg.recordMods);
   w(L"record_vk", g_cfg.recordVk);
   w(L"play_mods", g_cfg.playMods);

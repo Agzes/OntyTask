@@ -23,6 +23,9 @@ struct Config {
   long long clickInterval;
   int clickHold;
   int clickKeyMods, clickKeyVk;
+  int clickJitter, clickLimit, clickTimeLimit, clickJiggle;
+  int clickHoldKeyMods, clickHoldKeyVk;
+  int clickHoldMouse;
 };
 
 extern Config g_cfg;

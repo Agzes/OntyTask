@@ -19,9 +19,17 @@ struct ClickerParams {
   int hold = 100;
   int keyMods = 0;
   int keyVk = 0;
+  int jitter = 0;
+  int limit = 0;
+  int timeLimit = 0;
+  int jiggle = 0;
+  int holdKeyMods = 0;
+  int holdKeyVk = 0;
+  int holdMouse = 0;
 };
 
 void Clicker_Start(const ClickerParams &params);
 void Clicker_Stop();
 bool Clicker_IsRunning();
+int Clicker_StopReason();
 DWORD Clicker_StartTick();

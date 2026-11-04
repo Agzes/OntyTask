@@ -149,6 +149,19 @@
         "panic_remove": "移除",
         "tray_enable": "系统托盘",
         "loop_delay": "循环间隔",
-        "q_loop_delay": "循环间隔（毫秒，0-3600000）"
+        "q_loop_delay": "循环间隔（毫秒，0-3600000）",
+        "click_advanced": "高级",
+        "click_jitter": "间隔抖动",
+        "q_click_jitter": "间隔抖动百分比（0-90）",
+        "click_limit": "点击次数上限",
+        "q_click_limit": "最大点击次数（0 = 不限）",
+        "click_time_limit": "时间上限",
+        "q_click_time_limit": "时间上限（秒，0 = 不限）",
+        "click_jiggle": "抖动半径",
+        "q_click_jiggle": "光标随机偏移（像素，0 = 关闭）",
+        "click_hold_key": "按住时点击",
+        "seconds": "秒",
+        "off": "关闭",
+        "click_hold_hint": "先启动点击器，然后按住触发键"
     }
 }

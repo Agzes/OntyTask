@@ -166,6 +166,19 @@ static const char *kKeys[L_COUNT] = {
     "tray_enable",
     "loop_delay",
     "q_loop_delay",
+    "click_advanced",
+    "click_jitter",
+    "q_click_jitter",
+    "click_limit",
+    "q_click_limit",
+    "click_time_limit",
+    "q_click_time_limit",
+    "click_jiggle",
+    "q_click_jiggle",
+    "click_hold_key",
+    "seconds",
+    "off",
+    "click_hold_hint",
 };
 
 static bool ReadResourceText(int id, std::string &out) {
