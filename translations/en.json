@@ -26,8 +26,8 @@
         "loops100": "100",
         "continuous": "Continuous (∞)",
         "loops_custom2": "Custom...",
-        "theme": "Theme",
         "interface_theme": "Interface theme",
+        "interface": "Interface",
         "theme_dark": "Dark",
         "theme_light": "Light",
         "theme_acrylic": "Acrylic",
@@ -167,6 +167,12 @@
         "q_rec_countdown": "Countdown before recording in seconds (0 = off)",
         "countdown": "Recording in %d...",
         "q_play_countdown": "Countdown before playback in seconds (0 = off)",
-        "countdown_play": "Playback in %d..."
+        "countdown_play": "Playback in %d...",
+        "opacity": "Opacity",
+        "q_opacity": "Window opacity in percent (50-100)",
+        "accent": "Accent color",
+        "reset": "Reset",
+        "theme_import": "Import theme JSON...",
+        "scale": "Interface scale"
     }
 }

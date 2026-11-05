@@ -30,6 +30,7 @@ Welcome to the **OntyTask** wiki! Here you will find guides on setting up, using
     - Dark mode, Light mode, and Windows Acrylic blur
     - Tray icon settings and auto-minimize
     - Floating status bar that dodges your mouse cursor
+    - **[Theme Gallery & JSON Themes](Themes.md)**
 
 5. **[The .onty File Format](Onty-Macro-Format.md)**
     - How macros are stored in JSON

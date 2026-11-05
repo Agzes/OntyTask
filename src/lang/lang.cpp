@@ -42,8 +42,8 @@ static const char *kKeys[L_COUNT] = {
     "loops100",
     "continuous",
     "loops_custom2",
-    "theme",
     "interface_theme",
+    "interface",
     "theme_dark",
     "theme_light",
     "theme_acrylic",
@@ -184,6 +184,12 @@ static const char *kKeys[L_COUNT] = {
     "countdown",
     "q_play_countdown",
     "countdown_play",
+    "opacity",
+    "q_opacity",
+    "accent",
+    "reset",
+    "theme_import",
+    "scale",
 };
 
 static bool ReadResourceText(int id, std::string &out) {

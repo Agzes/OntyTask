@@ -1,5 +1,7 @@
 ﻿#include "ui/gfx.h"
 #include "core/config.h"
+#include "core/json.h"
+#include <vector>
 
 static ULONG_PTR g_token = 0;
 static int g_dpi = 96;
@@ -11,12 +13,181 @@ static HFONT g_glyphs[8];
 static int g_glyphPx[8];
 static int g_glyphCount = 0;
 
+struct ThemeDef {
+  std::wstring file;
+  std::wstring name;
+  COLORREF bg = RGB(30, 30, 30);
+  COLORREF bg2 = RGB(39, 39, 39);
+  COLORREF text = RGB(214, 214, 214);
+  COLORREF accent = RGB(96, 180, 224);
+  COLORREF dim = RGB(139, 139, 139);
+  COLORREF border = RGB(54, 54, 54);
+  COLORREF hover = RGB(42, 42, 42);
+  COLORREF hover2 = RGB(48, 48, 48);
+  COLORREF record = RGB(232, 64, 54);
+  COLORREF play = RGB(90, 184, 224);
+  COLORREF close = RGB(196, 43, 28);
+  COLORREF warn = RGB(224, 176, 64);
+  bool hasDim = false;
+  bool hasBorder = false;
+  bool hasHover = false;
+  bool hasHover2 = false;
+  bool hasRecord = false;
+  bool hasPlay = false;
+  bool hasClose = false;
+  bool hasWarn = false;
+  bool dark = true;
+};
+
+static std::vector<ThemeDef> g_customThemes;
+static const ThemeDef *g_customTheme = nullptr;
+
+static bool ParseHexColor(const std::wstring &s, COLORREF &out) {
+  if (s.size() != 7 || s[0] != L'#')
+    return false;
+  wchar_t *end = nullptr;
+  unsigned long v = wcstoul(s.c_str() + 1, &end, 16);
+  if (!end || *end)
+    return false;
+  out = RGB((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF);
+  return true;
+}
+
+static bool ParseThemeFile(const std::wstring &path, ThemeDef &t) {
+  std::string bytes;
+  if (!json::ReadTextFile(path.c_str(), bytes))
+    return false;
+  std::wstring w = json::ToWide(bytes);
+  json::Js j{w.c_str(), w.c_str() + w.size()};
+  if (!json::Eat(j, L'{'))
+    return false;
+  bool hasBg = false, hasText = false;
+  while (true) {
+    json::Ws(j);
+    if (json::Eat(j, L'}'))
+      break;
+    std::wstring key;
+    if (!json::Str(j, key))
+      return false;
+    if (!json::Eat(j, L':'))
+      return false;
+    json::Ws(j);
+    if (j.p < j.e && *j.p == L'"') {
+      std::wstring v;
+      if (!json::Str(j, v))
+        return false;
+      if (key == L"name")
+        t.name = v;
+      else if (key == L"bg")
+        hasBg = ParseHexColor(v, t.bg);
+      else if (key == L"bg2")
+        ParseHexColor(v, t.bg2);
+      else if (key == L"text")
+        hasText = ParseHexColor(v, t.text);
+      else if (key == L"accent")
+        ParseHexColor(v, t.accent);
+      else if (key == L"dim")
+        t.hasDim = ParseHexColor(v, t.dim);
+      else if (key == L"border")
+        t.hasBorder = ParseHexColor(v, t.border);
+      else if (key == L"hover")
+        t.hasHover = ParseHexColor(v, t.hover);
+      else if (key == L"hover2")
+        t.hasHover2 = ParseHexColor(v, t.hover2);
+      else if (key == L"record")
+        t.hasRecord = ParseHexColor(v, t.record);
+      else if (key == L"play")
+        t.hasPlay = ParseHexColor(v, t.play);
+      else if (key == L"close")
+        t.hasClose = ParseHexColor(v, t.close);
+      else if (key == L"warn")
+        t.hasWarn = ParseHexColor(v, t.warn);
+    } else if (j.p < j.e && (*j.p == L't' || *j.p == L'f')) {
+      bool b = false;
+      if (json::Bool(j, b) && key == L"dark")
+        t.dark = b;
+    } else {
+      json::SkipVal(j);
+    }
+    json::Ws(j);
+    json::Eat(j, L',');
+  }
+  if (!hasBg || !hasText)
+    return false;
+  if (t.name.empty())
+    t.name = t.file;
+  return true;
+}
+
+static void LoadThemeFiles() {
+  g_customThemes.clear();
+  g_customTheme = nullptr;
+  wchar_t exe[MAX_PATH];
+  GetModuleFileNameW(nullptr, exe, MAX_PATH);
+  wchar_t *slash = wcsrchr(exe, L'\\');
+  if (!slash)
+    return;
+  *(slash + 1) = 0;
+  std::wstring dir = std::wstring(exe) + L"themes";
+  std::wstring pat = dir + L"\\*.json";
+  WIN32_FIND_DATAW fd;
+  HANDLE h = FindFirstFileW(pat.c_str(), &fd);
+  if (h == INVALID_HANDLE_VALUE)
+    return;
+  do {
+    if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+      continue;
+    ThemeDef t;
+    t.file = fd.cFileName;
+    if (ParseThemeFile(dir + L"\\" + fd.cFileName, t))
+      g_customThemes.push_back(t);
+  } while (FindNextFileW(h, &fd));
+  FindClose(h);
+  if (!g_cfg.themeFile.empty()) {
+    for (const ThemeDef &t : g_customThemes) {
+      if (t.file == g_cfg.themeFile) {
+        g_customTheme = &t;
+        break;
+      }
+    }
+  }
+}
+
+int GfxCustomThemeCount() { return (int)g_customThemes.size(); }
+
+const wchar_t *GfxCustomThemeName(int index) {
+  if (index < 0 || index >= (int)g_customThemes.size())
+    return L"";
+  return g_customThemes[index].name.c_str();
+}
+
+const wchar_t *GfxCustomThemeFile(int index) {
+  if (index < 0 || index >= (int)g_customThemes.size())
+    return L"";
+  return g_customThemes[index].file.c_str();
+}
+
+void GfxSetThemeFile(const wchar_t *file) {
+  g_customTheme = nullptr;
+  if (!file || !*file)
+    return;
+  for (const ThemeDef &t : g_customThemes) {
+    if (t.file == file) {
+      g_customTheme = &t;
+      break;
+    }
+  }
+}
+
+void GfxReloadThemes() { LoadThemeFiles(); }
+
 void GfxInit() {
   Gdiplus::GdiplusStartupInput si;
   Gdiplus::GdiplusStartup(&g_token, &si, nullptr);
   HDC dc = GetDC(nullptr);
   g_dpi = GetDeviceCaps(dc, LOGPIXELSY);
   ReleaseDC(nullptr, dc);
+  LoadThemeFiles();
 }
 
 void GfxShutdown() {}
@@ -32,9 +203,16 @@ static COLORREF Blend(COLORREF a, COLORREF b, float t) {
 
 static const COLORREF *Palette() {
   static const COLORREF pal[3][3] = {{0x1E1E1E, 0x272727, 0xD6D6D6},
-                                     {0xF8F9FA, 0xFFFFFF, 0x1F2328},
+                                     {0xF8F9FA, 0xFFFFFF, 0x15181C},
                                      {0x181818, 0x222222, 0xEDEDED}};
-  int t = g_cfg.theme;
+  if (g_customTheme) {
+    static COLORREF cpal[3];
+    cpal[0] = g_customTheme->bg;
+    cpal[1] = g_customTheme->bg2;
+    cpal[2] = g_customTheme->text;
+    return cpal;
+  }
+  int t = GfxTheme();
   if (t < 0 || t > 2)
     t = 0;
   return pal[t];
@@ -43,11 +221,53 @@ static const COLORREF *Palette() {
 COLORREF ThBg() { return Palette()[0]; }
 COLORREF ThBg2() { return Palette()[1]; }
 COLORREF ThText() { return Palette()[2]; }
-COLORREF ThDim() { return Blend(ThText(), ThBg(), 0.50f); }
-COLORREF ThBorder() { return Blend(ThBg(), ThText(), 0.12f); }
-COLORREF ThHover() { return Blend(ThBg(), ThText(), 0.06f); }
-COLORREF ThHover2() { return Blend(ThBg(), ThText(), 0.11f); }
-COLORREF ThAccent() { return RGB(96, 180, 224); }
+COLORREF ThDim() {
+  if (g_customTheme && g_customTheme->hasDim)
+    return g_customTheme->dim;
+  return Blend(ThText(), ThBg(), GfxTheme() == THEME_LIGHT ? 0.38f : 0.50f);
+}
+COLORREF ThBorder() {
+  if (g_customTheme && g_customTheme->hasBorder)
+    return g_customTheme->border;
+  return Blend(ThBg(), ThText(), GfxTheme() == THEME_LIGHT ? 0.18f : 0.12f);
+}
+COLORREF ThHover() {
+  if (g_customTheme && g_customTheme->hasHover)
+    return g_customTheme->hover;
+  return Blend(ThBg(), ThText(), GfxTheme() == THEME_LIGHT ? 0.08f : 0.06f);
+}
+COLORREF ThHover2() {
+  if (g_customTheme && g_customTheme->hasHover2)
+    return g_customTheme->hover2;
+  return Blend(ThBg(), ThText(), GfxTheme() == THEME_LIGHT ? 0.14f : 0.11f);
+}
+COLORREF ThAccent() {
+  if (g_cfg.accent >= 0)
+    return (COLORREF)g_cfg.accent;
+  if (g_customTheme)
+    return g_customTheme->accent;
+  return GfxTheme() == THEME_LIGHT ? RGB(43, 127, 181) : RGB(96, 180, 224);
+}
+COLORREF ThRecord() {
+  if (g_customTheme)
+    return g_customTheme->record;
+  return RGB(232, 64, 54);
+}
+COLORREF ThPlay() {
+  if (g_customTheme)
+    return g_customTheme->play;
+  return RGB(90, 184, 224);
+}
+COLORREF ThClose() {
+  if (g_customTheme)
+    return g_customTheme->close;
+  return RGB(196, 43, 28);
+}
+COLORREF ThWarn() {
+  if (g_customTheme)
+    return g_customTheme->warn;
+  return RGB(224, 176, 64);
+}
 
 Gdiplus::Color GfxAcrylicBg() { return Gdiplus::Color(255, 0, 0, 0); }
 
@@ -218,10 +438,10 @@ void GfxThemedButton(Gdiplus::Graphics &g, HDC hdc, const RECT &r, int state,
   Gdiplus::Color fill;
   Gdiplus::Color border;
   if (primary) {
-    fill = state == 1 ? Gdiplus::Color(230, 20, 142, 224)
-                      : Gdiplus::Color(200, 0, 122, 204);
-    border = Gdiplus::Color(220, 0, 140, 230);
-  } else if (g_cfg.theme == THEME_ACRYLIC) {
+    COLORREF ac = ThAccent();
+    fill = GdiCol(Blend(ac, RGB(0, 0, 0), state == 1 ? 0.15f : 0.30f));
+    border = GdiCol(ac);
+  } else if (GfxTheme() == THEME_ACRYLIC) {
     fill = state == 2   ? Gdiplus::Color(120, 90, 90, 90)
            : state == 1 ? Gdiplus::Color(90, 70, 70, 70)
                         : Gdiplus::Color(60, 50, 50, 50);
@@ -257,21 +477,16 @@ RECT GfxPinRect(int w) {
   return r;
 }
 
-static bool SysAppsDark() {
-  HKEY k;
-  if (RegOpenKeyExW(
-          HKEY_CURRENT_USER,
-          L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-          0, KEY_QUERY_VALUE, &k) != ERROR_SUCCESS)
-    return false;
-  DWORD v = 1, sz = 4;
-  RegQueryValueExW(k, L"AppsUseLightTheme", nullptr, nullptr, (LPBYTE)&v, &sz);
-  RegCloseKey(k);
-  return v == 0;
+int GfxTheme() {
+  if (g_customTheme)
+    return g_customTheme->dark ? THEME_DARK : THEME_LIGHT;
+  if (g_cfg.theme < 0 || g_cfg.theme > 2)
+    return THEME_DARK;
+  return g_cfg.theme;
 }
 
 int GfxMenuTheme() {
-  bool dark = (g_cfg.theme != THEME_LIGHT);
+  bool dark = (GfxTheme() != THEME_LIGHT);
   HMODULE ux = GetModuleHandleW(L"uxtheme.dll");
   if (!ux)
     return dark ? 2 : 1;
@@ -291,8 +506,8 @@ void GfxChrome(Gdiplus::Graphics &g, HDC hdc, int width, const wchar_t *title,
   static Gdiplus::StringFormat sfC;
   sfC.SetAlignment(Gdiplus::StringAlignmentCenter);
   sfC.SetLineAlignment(Gdiplus::StringAlignmentCenter);
-  bool light = g_cfg.theme == THEME_LIGHT;
-  bool acry = g_cfg.theme == THEME_ACRYLIC;
+  bool light = GfxTheme() == THEME_LIGHT;
+  bool acry = GfxTheme() == THEME_ACRYLIC;
   g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
   g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeNone);
   if (buttons & CHB_SEP) {
@@ -305,10 +520,32 @@ void GfxChrome(Gdiplus::Graphics &g, HDC hdc, int width, const wchar_t *title,
                                  : Gdiplus::Color(30, 255, 255, 255));
     g.FillRectangle(&hb, 0.0f, 0.0f, 30.0f, 30.0f);
   }
-  HICON ic = LoadAppIconId(GfxUiIconId(), 16);
-  if (ic) {
-    DrawIconEx(hdc, 7, 7, ic, 16, 16, 0, nullptr, DI_NORMAL);
-    DestroyIcon(ic);
+  Gdiplus::Matrix mt;
+  g.GetTransform(&mt);
+  REAL me[6] = {1, 0, 0, 1, 0, 0};
+  mt.GetElements(me);
+  if (me[0] > 1.001f) {
+    Gdiplus::GraphicsState st = g.Save();
+    g.ResetTransform();
+    int sz = MulDiv(16, g_cfg.uiScale, 100);
+    int px = MulDiv(7, g_cfg.uiScale, 100);
+    HICON ic = LoadAppIconId(GfxUiIconId(), 32);
+    if (ic) {
+      Gdiplus::Bitmap bmp(ic);
+      g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+      g.SetSmoothingMode(Gdiplus::SmoothingModeHighQuality);
+      g.DrawImage(&bmp, (REAL)px, (REAL)px, (REAL)sz, (REAL)sz);
+      DestroyIcon(ic);
+    }
+    g.Restore(st);
+  } else {
+    HICON ic = LoadAppIconId(GfxUiIconId(), 16);
+    if (ic) {
+      Gdiplus::Bitmap bmp(ic);
+      if (bmp.GetLastStatus() == Gdiplus::Ok)
+        g.DrawImage(&bmp, 7.0f, 7.0f, 16.0f, 16.0f);
+      DestroyIcon(ic);
+    }
   }
   g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
   g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
@@ -355,7 +592,7 @@ void GfxChrome(Gdiplus::Graphics &g, HDC hdc, int width, const wchar_t *title,
   }
   RECT rc = GfxCloseRect(width);
   if (hover == 2) {
-    Gdiplus::SolidBrush red(Gdiplus::Color(255, 196, 43, 28));
+    Gdiplus::SolidBrush red(GdiCol(ThClose()));
     g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
     g.FillRectangle(&red, (REAL)rc.left, (REAL)rc.top,
                     (REAL)(rc.right - rc.left), (REAL)(rc.bottom - rc.top));
@@ -380,7 +617,7 @@ HICON LoadAppIcon(int size) { return LoadAppIconId(1, size); }
 
 int GfxUiIconId() {
   bool light =
-      g_cfg.uiIcon == 2 || (g_cfg.uiIcon == 0 && g_cfg.theme == THEME_LIGHT);
+      g_cfg.uiIcon == 2 || (g_cfg.uiIcon == 0 && GfxTheme() == THEME_LIGHT);
   return light ? 4 : 2;
 }
 
@@ -523,7 +760,7 @@ static void ExtFrame(HWND h, int v) {
 }
 
 void ApplyWindowMaterial(HWND h) {
-  if (g_cfg.theme == THEME_ACRYLIC) {
+  if (GfxTheme() == THEME_ACRYLIC) {
     SetAccent(h, 4, 0x8C141414);
     ExtFrame(h, -1);
   } else {

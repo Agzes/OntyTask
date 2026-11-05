@@ -107,6 +107,7 @@ Check out the full [Wiki](wiki/) for more details and guides:
 - 🎮 [Macro Engine & 3D Games](wiki/Engine.md) - How 3D camera tracking works.
 - ⌨️ [Hotkeys & Controls](wiki/Hotkeys.md) - Shortcuts and emergency stop settings.
 - 🎨 [Themes & Customization](wiki/Settings.md) - Dark mode, Acrylic blur, and status bar.
+    - [Theme Gallery & JSON Themes](wiki/Themes.md) - Official palettes and custom JSON themes.
 - 📄 [The .onty File Format](wiki/Onty-Macro-Format.md) - How macros are stored in JSON.
 - 🌐 [Languages & Translations](wiki/Translations.md) - Adding custom languages.
 - 📋 [Translation Table & Words](wiki/Translation-Table.md) - All words and text keys.

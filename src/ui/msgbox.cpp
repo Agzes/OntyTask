@@ -7,8 +7,8 @@
 #include <vector>
 #include <windowsx.h>
 
-static COLORREF MRecRed() { return RGB(232, 64, 54); }
-static COLORREF MBlue() { return RGB(96, 180, 224); }
+static COLORREF MRecRed() { return ThClose(); }
+static COLORREF MBlue() { return ThAccent(); }
 
 struct UiMsg {
   std::wstring text, caption;
@@ -197,7 +197,7 @@ static LRESULT CALLBACK MsgProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     HBITMAP bm = CreateCompatibleBitmap(hdc, rc.right, rc.bottom);
     HGDIOBJ old = SelectObject(mem, bm);
     Gdiplus::Graphics g(mem);
-    bool acry = g_cfg.theme == THEME_ACRYLIC;
+    bool acry = GfxTheme() == THEME_ACRYLIC;
     g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
     g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeNone);
     Gdiplus::SolidBrush bg(acry ? GfxAcrylicBg() : GdiCol(ThBg()));
@@ -568,7 +568,7 @@ static LRESULT CALLBACK HkProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     HBITMAP bm = CreateCompatibleBitmap(hdc, rc.right, rc.bottom);
     HGDIOBJ old = SelectObject(mem, bm);
     Gdiplus::Graphics g(mem);
-    bool acry = g_cfg.theme == THEME_ACRYLIC;
+    bool acry = GfxTheme() == THEME_ACRYLIC;
     g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
     Gdiplus::SolidBrush bg(acry ? GfxAcrylicBg() : GdiCol(ThBg()));
     g.FillRectangle(&bg, 0, 0, rc.right, rc.bottom);

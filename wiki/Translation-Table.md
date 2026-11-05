@@ -36,8 +36,8 @@ If you're creating a translation for another language, this table shows you wher
 | `loops_custom2`      | Custom...                                                                | Своё...                                                                        | Loops menu                | Custom loops dialog      |
 | `loop_delay`         | Delay between loops                                                      | Задержка между повторами                                                       | Loops menu                | Pause between loops      |
 | `q_loop_delay`       | Delay between loops in ms (0-3600000)                                    | Задержка между повторами в мс (0-3600000)                                      | Input dialog              | Loop delay prompt        |
-| `theme`              | Theme                                                                    | Тема                                                                           | Main menu                 | Theme submenu            |
 | `interface_theme`    | Interface theme                                                          | Тема интерфейса                                                                | Theme menu                | Category label           |
+| `interface`          | Interface                                                                | Интерфейс                                                                      | Main menu                 | Interface submenu        |
 | `theme_dark`         | Dark                                                                     | Тёмная                                                                         | Theme menu                | Dark theme               |
 | `theme_light`        | Light                                                                    | Светлая                                                                        | Theme menu                | Light theme              |
 | `theme_acrylic`      | Acrylic                                                                  | Acrylic                                                                        | Theme menu                | Fluent blur effect       |
@@ -176,6 +176,12 @@ If you're creating a translation for another language, this table shows you wher
 | `countdown`          | Recording in %d...                                                       | Запись через %d...                                                             | Status notification       | Countdown text           |
 | `q_play_countdown`   | Countdown before playback in seconds (0 = off)                           | Отсчёт перед воспроизведением, сек (0 = выкл.)                                 | Input dialog              | Playback prompt          |
 | `countdown_play`     | Playback in %d...                                                        | Воспроизведение через %d...                                                    | Status notification       | Countdown text           |
+| `opacity`            | Opacity                                                                  | Прозрачность                                                                   | Theme menu                | Window opacity           |
+| `q_opacity`          | Window opacity in percent (50-100)                                       | Прозрачность окна в процентах (50-100)                                         | Input dialog              | Opacity prompt           |
+| `accent`             | Accent color                                                             | Акцентный цвет                                                                 | Theme menu                | Custom accent            |
+| `reset`              | Reset                                                                    | Сбросить                                                                       | Theme menu                | Reset accent             |
+| `theme_import`       | Import theme JSON...                                                     | Импорт темы JSON...                                                            | Interface menu            | Import JSON file         |
+| `scale`              | Interface scale                                                          | Масштаб интерфейса                                                             | Main menu                 | UI scale                 |
 
 ---
 

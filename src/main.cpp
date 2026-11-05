@@ -137,6 +137,12 @@ enum {
   IDM_CLICK_HOLD_X2,
   IDM_REC_COUNTDOWN = 305,
   IDM_PLAY_COUNTDOWN,
+  IDM_OPACITY = 307,
+  IDM_ACCENT = 310,
+  IDM_ACCENT_RESET,
+  IDM_THEME_IMPORT,
+  IDM_UISCALE = 313,
+  IDM_THEME_0 = 320,
   IDM_PANIC_ADD = 230,
   IDM_PANIC_CHANGE_0 = 231,
   IDM_PANIC_REMOVE_0 = 231 + MAX_PANIC_KEYS,
@@ -148,6 +154,9 @@ enum {
 static const int WIN_W = 250, TB_H = 30, TOOL_H = 45, STATUS_H = 24, TILES = 5,
                  TILE_W = WIN_W / TILES;
 static const int WIN_H = TB_H + TOOL_H + STATUS_H;
+
+static int UiPx(int v) { return MulDiv(v, g_cfg.uiScale, 100); }
+static int UiUnscale(int v) { return MulDiv(v, 100, g_cfg.uiScale); }
 static const int CLICK_H = 60;
 static const int CFG_ROW_H = CLICK_H / 2;
 
@@ -174,9 +183,13 @@ static int g_recCountdown = 0;
 static int g_playCountdown = 0;
 
 static void DoCmd(int id);
+static void TrayIconRefresh();
 static bool InputDialog(const wchar_t *prompt, int init, int minv, int maxv,
                         int &out);
 static void ShowAbout();
+
+static int StatusH() { return STATUS_H; }
+static int WinBaseH() { return TB_H + TOOL_H + STATUS_H; }
 
 static int ClientH() {
   if (g_hwnd) {
@@ -185,10 +198,12 @@ static int ClientH() {
     if (r.bottom > 0)
       return r.bottom;
   }
-  return WIN_H + (int)(g_extraH + 0.5f);
+  return UiPx(WinBaseH() + (int)(g_extraH + 0.5f));
 }
 
-static int StatusY() { return ClientH() - STATUS_H; }
+static int ClientLogicalH() { return UiUnscale(ClientH()); }
+
+static int StatusY() { return ClientLogicalH() - StatusH(); }
 
 static bool ClickerMode() { return g_cfg.mode == 1; }
 
@@ -222,20 +237,26 @@ static RECT ClickCellRect(int i) {
 }
 
 static RECT UpdateBtnRect() {
+  RECT r = {0, 0, 0, 0};
+  if (StatusH() <= 0)
+    return r;
   int sy = StatusY();
-  RECT r = {WIN_W - 23, sy + 1, WIN_W - 1, sy + STATUS_H - 1};
+  r = {WIN_W - 23, sy + 1, WIN_W - 1, sy + STATUS_H - 1};
   return r;
 }
 static RECT ReSaveBtnRect() {
+  RECT r = {0, 0, 0, 0};
+  if (StatusH() <= 0)
+    return r;
   int sy = StatusY();
-  RECT r = {0, sy + 1, 23, sy + STATUS_H - 1};
+  r = {0, sy + 1, 23, sy + STATUS_H - 1};
   return r;
 }
 static std::wstring g_lastFile;
 static bool g_dirty = false;
 
-static COLORREF RecRed() { return RGB(232, 64, 54); }
-static COLORREF PlayBlue() { return RGB(90, 184, 224); }
+static COLORREF RecRed() { return ThRecord(); }
+static COLORREF PlayBlue() { return ThPlay(); }
 
 static COLORREF g_fadeBg = RGB(30, 30, 30);
 static COLORREF g_acrylicBg = RGB(30, 30, 30);
@@ -471,20 +492,35 @@ static void Paint() {
   HBITMAP bm = CreateCompatibleBitmap(hdc, rc.right, rc.bottom);
   HGDIOBJ old = SelectObject(mem, bm);
   Gdiplus::Graphics g(mem);
-  bool acry = g_cfg.theme == THEME_ACRYLIC;
+  int lw = WIN_W;
+  int lh = WinBaseH() + (int)(g_extraH + 0.5f);
+  REAL scx = (REAL)rc.right / (REAL)lw;
+  REAL scy = (REAL)rc.bottom / (REAL)lh;
+  g.ScaleTransform(scx, scy);
+  g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
+  bool acry = GfxTheme() == THEME_ACRYLIC;
   g_fadeBg = acry ? SampleAcrylicBg() : ThBg();
   g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
   g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeNone);
   Gdiplus::SolidBrush bg(acry ? GfxAcrylicBg() : GdiCol(ThBg()));
-  g.FillRectangle(&bg, 0, 0, rc.right, rc.bottom);
+  g.FillRectangle(&bg, 0, 0, lw, lh);
   Gdiplus::Pen border(acry ? Gdiplus::Color(160, 56, 56, 56)
                            : GdiCol(ThBorder()));
-  g.DrawRectangle(&border, 0, 0, rc.right - 1, rc.bottom - 1);
+  {
+    Gdiplus::GraphicsState st = g.Save();
+    g.ResetTransform();
+    Gdiplus::Color bc;
+    border.GetColor(&bc);
+    Gdiplus::Pen bp(bc, 1.0f);
+    g.DrawRectangle(&bp, 0.5f, 0.5f, (REAL)rc.right - 1.0f,
+                    (REAL)rc.bottom - 1.0f);
+    g.Restore(st);
+  }
 
   int st = g_state.load();
   bool run = Clicker_IsRunning();
   bool clicker = ClickerMode();
-  int sy = rc.bottom - STATUS_H;
+  int sy = lh - StatusH();
   int panelA = (int)(g_panelFade * 255.0f + 0.5f);
   int extraA = (int)(g_extraH / (float)ClickAreaH() * 255.0f + 0.5f);
   if (extraA > 255)
@@ -492,6 +528,19 @@ static void Paint() {
 
   Gdiplus::SolidBrush gborder(acry ? Gdiplus::Color(255, 48, 48, 48)
                                    : GdiCol(ThBorder()));
+
+  auto vline = [&](REAL x, REAL y, REAL h) {
+    Gdiplus::GraphicsState st = g.Save();
+    g.ResetTransform();
+    g.FillRectangle(&gborder, (REAL)(int)(x * scx), y * scy, 1.0f, h * scy);
+    g.Restore(st);
+  };
+  auto hline = [&](REAL x, REAL y, REAL w) {
+    Gdiplus::GraphicsState st = g.Save();
+    g.ResetTransform();
+    g.FillRectangle(&gborder, x * scx, (REAL)(int)(y * scy), w * scx, 1.0f);
+    g.Restore(st);
+  };
 
   if (panelA < 128) {
     for (int i = 0; i < TILES; i++) {
@@ -524,27 +573,24 @@ static void Paint() {
   for (int i = 1; i < TILES; i++) {
     if (panelA > 128 && i == 3)
       continue;
-    g.FillRectangle(&gborder, (REAL)(i * TILE_W - 1), (REAL)TB_H, 1.0f,
-                    (REAL)TOOL_H);
+    vline((REAL)(i * TILE_W - 1), (REAL)TB_H, (REAL)TOOL_H);
   }
-  g.FillRectangle(&gborder, 0.0f, (REAL)TB_H, (REAL)WIN_W, 1.0f);
-  g.FillRectangle(&gborder, 0.0f, (REAL)(TB_H + TOOL_H), (REAL)WIN_W, 1.0f);
-  g.FillRectangle(&gborder, (REAL)(WIN_W - 24), (REAL)sy, 1.0f, (REAL)STATUS_H);
-  g.FillRectangle(&gborder, 23.0f, (REAL)sy, 1.0f, (REAL)STATUS_H);
+  hline(0.0f, (REAL)TB_H, (REAL)WIN_W);
+  hline(0.0f, (REAL)(TB_H + TOOL_H), (REAL)WIN_W);
+  vline((REAL)(WIN_W - 24), (REAL)sy, (REAL)STATUS_H);
+  vline(23.0f, (REAL)sy, (REAL)STATUS_H);
   if (sy != TB_H + TOOL_H)
-    g.FillRectangle(&gborder, 0.0f, (REAL)sy, (REAL)WIN_W, 1.0f);
+    hline(0.0f, (REAL)sy, (REAL)WIN_W);
 
   if (clicker && extraA > 0) {
     Gdiplus::GraphicsState ss = g.Save();
     g.SetClip(Gdiplus::RectF(0, (REAL)(TB_H + TOOL_H), (REAL)WIN_W,
                              (REAL)(sy - (TB_H + TOOL_H))));
     int top = TB_H + TOOL_H;
-    g.FillRectangle(&gborder, (REAL)(WIN_W / 2), (REAL)top, 1.0f,
-                    (REAL)CLICK_H);
-    g.FillRectangle(&gborder, 0.0f, (REAL)(top + CFG_ROW_H), (REAL)WIN_W, 1.0f);
+    vline((REAL)(WIN_W / 2), (REAL)top, (REAL)CLICK_H);
+    hline(0.0f, (REAL)(top + CFG_ROW_H), (REAL)WIN_W);
     if (g_cfg.clickType == CLICK_HOLD)
-      g.FillRectangle(&gborder, 0.0f, (REAL)(top + 2 * CFG_ROW_H), (REAL)WIN_W,
-                      1.0f);
+      hline(0.0f, (REAL)(top + 2 * CFG_ROW_H), (REAL)WIN_W);
     g.Restore(ss);
   }
 
@@ -553,7 +599,9 @@ static void Paint() {
   Gdiplus::SolidBrush dim(GdiCol(ThDim()));
   g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
   g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
-  g.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
+  g.SetTextRenderingHint(g_cfg.uiScale == 100
+                             ? Gdiplus::TextRenderingHintClearTypeGridFit
+                             : Gdiplus::TextRenderingHintAntiAliasGridFit);
 
   for (int i = 0; i < TILES; i++) {
     int a = (i == 2 || i == 3) ? 255 - panelA : 255;
@@ -657,81 +705,83 @@ static void Paint() {
     g.Restore(gs);
   }
 
-  RECT rsb = ReSaveBtnRect();
-  RECT rbtn = {1, rsb.top, 23, rsb.bottom};
-  bool hasRec = !g_events.empty();
-  bool saved = hasRec && !g_dirty;
-  if (g_hoverT == 6 && hasRec) {
-    g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
-    Gdiplus::SolidBrush hb(acry ? Gdiplus::Color(70, 60, 60, 60)
-                                : GdiCol(ThHover()));
-    g.FillRectangle(&hb, (REAL)rbtn.left, (REAL)rbtn.top,
-                    (REAL)(rbtn.right - rbtn.left),
-                    (REAL)(rbtn.bottom - rbtn.top));
-    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
-    g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
-  }
-  if (!hasRec) {
-    Gdiplus::SolidBrush dd(GdiCol(ThDim()));
-    g.FillEllipse(&dd, (REAL)(rbtn.left + rbtn.right) / 2.0f - 3,
-                  (REAL)(rbtn.top + rbtn.bottom) / 2.0f - 3, 6.0f, 6.0f);
-  } else if (saved)
-    DrawGlyph(mem, g, (REAL)(rbtn.left + rbtn.right) / 2.0f,
-              (REAL)(rbtn.top + rbtn.bottom) / 2.0f, 11, (wchar_t)0xE73E,
-              ThText());
-  else
-    DrawGlyph(mem, g, (REAL)(rbtn.left + rbtn.right) / 2.0f,
-              (REAL)(rbtn.top + rbtn.bottom) / 2.0f, 11, (wchar_t)0xE7BA,
-              RGB(224, 176, 64));
-
-  std::wstring status = DockStatusText();
-  Gdiplus::RectF sBounds;
-  g.MeasureString(status.c_str(), -1, &f8, Gdiplus::PointF(0, 0), &SfVC(),
-                  &sBounds);
-  REAL maxW = 118.0f;
-  REAL textX = 30.0f;
-  if (sBounds.Width > maxW) {
-    DWORD now = GetTickCount();
-    REAL overflow = sBounds.Width - maxW + 16.0f;
-    DWORD period = 4000;
-    REAL t = (REAL)(now % period) / (REAL)period;
-    REAL offset = 0;
-    if (t > 0.25f && t < 0.75f) {
-      offset = ((t - 0.25f) / 0.5f) * overflow;
-    } else if (t >= 0.75f) {
-      offset = overflow;
+  if (StatusH() > 0) {
+    RECT rsb = ReSaveBtnRect();
+    RECT rbtn = {1, rsb.top, 23, rsb.bottom};
+    bool hasRec = !g_events.empty();
+    bool saved = hasRec && !g_dirty;
+    if (g_hoverT == 6 && hasRec) {
+      g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
+      Gdiplus::SolidBrush hb(acry ? Gdiplus::Color(70, 60, 60, 60)
+                                  : GdiCol(ThHover()));
+      g.FillRectangle(&hb, (REAL)rbtn.left, (REAL)rbtn.top,
+                      (REAL)(rbtn.right - rbtn.left),
+                      (REAL)(rbtn.bottom - rbtn.top));
+      g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+      g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
     }
-    textX -= offset;
-  }
-  Gdiplus::GraphicsState gState = g.Save();
-  g.SetClip(Gdiplus::RectF(28.0f, (REAL)sy, maxW + 2.0f, (REAL)STATUS_H));
-  COLORREF scol = st == ST_REC             ? RecRed()
-                  : (st == ST_PLAY || run) ? PlayBlue()
-                                           : ThDim();
-  Gdiplus::SolidBrush ttxt(GdiCol(scol));
-  g.DrawString(status.c_str(), -1, &f8,
-               Gdiplus::RectF(textX, (REAL)(sy + 1), sBounds.Width + 4.0f,
-                              (REAL)STATUS_H),
-               &SfVC(), &ttxt);
-  g.Restore(gState);
+    if (!hasRec) {
+      Gdiplus::SolidBrush dd(GdiCol(ThDim()));
+      g.FillEllipse(&dd, (REAL)(rbtn.left + rbtn.right) / 2.0f - 3,
+                    (REAL)(rbtn.top + rbtn.bottom) / 2.0f - 3, 6.0f, 6.0f);
+    } else if (saved)
+      DrawGlyph(mem, g, (REAL)(rbtn.left + rbtn.right) / 2.0f,
+                (REAL)(rbtn.top + rbtn.bottom) / 2.0f, 11, (wchar_t)0xE73E,
+                ThText());
+    else
+      DrawGlyph(mem, g, (REAL)(rbtn.left + rbtn.right) / 2.0f,
+                (REAL)(rbtn.top + rbtn.bottom) / 2.0f, 11, (wchar_t)0xE7BA,
+                ThWarn());
 
-  g.DrawString(APP_VERSION, -1, &f8,
-               Gdiplus::RectF(150, (REAL)(sy + 1), 72, (REAL)STATUS_H), &SfR(),
-               &dim);
-  RECT ub = UpdateBtnRect();
-  if (g_hoverT == 5) {
-    g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
-    Gdiplus::SolidBrush hb(acry ? Gdiplus::Color(70, 60, 60, 60)
-                                : GdiCol(ThHover()));
-    g.FillRectangle(&hb, (REAL)ub.left, (REAL)ub.top,
-                    (REAL)(ub.right - ub.left), (REAL)(ub.bottom - ub.top));
-    g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
-    g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
+    std::wstring status = DockStatusText();
+    Gdiplus::RectF sBounds;
+    g.MeasureString(status.c_str(), -1, &f8, Gdiplus::PointF(0, 0), &SfVC(),
+                    &sBounds);
+    REAL maxW = 118.0f;
+    REAL textX = 30.0f;
+    if (sBounds.Width > maxW) {
+      DWORD now = GetTickCount();
+      REAL overflow = sBounds.Width - maxW + 16.0f;
+      DWORD period = 4000;
+      REAL t = (REAL)(now % period) / (REAL)period;
+      REAL offset = 0;
+      if (t > 0.25f && t < 0.75f) {
+        offset = ((t - 0.25f) / 0.5f) * overflow;
+      } else if (t >= 0.75f) {
+        offset = overflow;
+      }
+      textX -= offset;
+    }
+    Gdiplus::GraphicsState gState = g.Save();
+    g.SetClip(Gdiplus::RectF(28.0f, (REAL)sy, maxW + 2.0f, (REAL)STATUS_H));
+    COLORREF scol = st == ST_REC             ? RecRed()
+                    : (st == ST_PLAY || run) ? PlayBlue()
+                                             : ThDim();
+    Gdiplus::SolidBrush ttxt(GdiCol(scol));
+    g.DrawString(status.c_str(), -1, &f8,
+                 Gdiplus::RectF(textX, (REAL)(sy + 1), sBounds.Width + 4.0f,
+                                (REAL)STATUS_H),
+                 &SfVC(), &ttxt);
+    g.Restore(gState);
+
+    g.DrawString(APP_VERSION, -1, &f8,
+                 Gdiplus::RectF(150, (REAL)(sy + 1), 72, (REAL)STATUS_H),
+                 &SfR(), &dim);
+    RECT ub = UpdateBtnRect();
+    if (g_hoverT == 5) {
+      g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
+      Gdiplus::SolidBrush hb(acry ? Gdiplus::Color(70, 60, 60, 60)
+                                  : GdiCol(ThHover()));
+      g.FillRectangle(&hb, (REAL)ub.left, (REAL)ub.top,
+                      (REAL)(ub.right - ub.left), (REAL)(ub.bottom - ub.top));
+      g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+      g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
+    }
+    DrawGlyph(mem, g, (REAL)(ub.left + ub.right) / 2.0f,
+              (REAL)(ub.top + ub.bottom) / 2.0f, 9, (wchar_t)0xE777,
+              Update_Found() ? RecRed() : ThText());
   }
-  DrawGlyph(mem, g, (REAL)(ub.left + ub.right) / 2.0f,
-            (REAL)(ub.top + ub.bottom) / 2.0f, 9, (wchar_t)0xE777,
-            Update_Found() ? RecRed() : ThText());
-  GfxChrome(g, mem, rc.right, L(L_APPNAME), g_hoverT, CHB_MIN | CHB_PIN);
+  GfxChrome(g, mem, lw, L(L_APPNAME), g_hoverT, CHB_MIN | CHB_PIN);
   BitBlt(hdc, 0, 0, rc.right, rc.bottom, mem, 0, 0, SRCCOPY);
   SelectObject(mem, old);
   DeleteObject(bm);
@@ -886,7 +936,7 @@ static void TipRender(int x, int y) {
   g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
   g.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
   g.Clear(Gdiplus::Color(0, 0, 0, 0));
-  bool light = g_cfg.theme == THEME_LIGHT;
+  bool light = GfxTheme() == THEME_LIGHT;
   Gdiplus::RectF rr(0.5f, 0.5f, (REAL)(w - 1), (REAL)(h - 1));
   REAL d = 8.0f;
   Gdiplus::GraphicsPath path;
@@ -955,7 +1005,7 @@ static void CursorTipRender(int x, int y) {
   g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
   g.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
   g.Clear(Gdiplus::Color(0, 0, 0, 0));
-  bool light = g_cfg.theme == THEME_LIGHT;
+  bool light = GfxTheme() == THEME_LIGHT;
   Gdiplus::RectF rr(0.5f, 0.5f, (REAL)(w - 1), (REAL)(h - 1));
   REAL d = 8.0f;
   Gdiplus::GraphicsPath path;
@@ -1494,10 +1544,32 @@ static void AppendClipboardMenu(HMENU root) {
 
 static void AppendThemeMenu(HMENU root) {
   HMENU th = CreatePopupMenu();
+  wchar_t op[64];
+  swprintf_s(op, L"%s: %d%%...", L(L_OPACITY), g_cfg.opacity);
+  AddMI(th, IDM_OPACITY, op, 0xE713);
+  wchar_t sc[64];
+  swprintf_s(sc, L"%s: %d%%...", L(L_SCALE), g_cfg.uiScale);
+  AddMI(th, IDM_UISCALE, sc, 0xE740);
+  AppendMenuW(th, MF_SEPARATOR, 0, nullptr);
   AppendMenuW(th, MF_STRING | MF_GRAYED, 0, L(L_INTERFACE_THEME));
-  AddCheck(th, IDM_TH0, L(L_TH_DARK), g_cfg.theme == 0);
-  AddCheck(th, IDM_TH1, L(L_TH_LIGHT), g_cfg.theme == 1);
-  AddCheck(th, IDM_TH2, L(L_TH_ACRYLIC), g_cfg.theme == 2);
+  int currentTheme = -1;
+  for (int i = 0; i < GfxCustomThemeCount(); i++) {
+    if (g_cfg.themeFile == GfxCustomThemeFile(i)) {
+      currentTheme = i;
+      break;
+    }
+  }
+  AddCheck(th, IDM_TH0, L(L_TH_DARK), currentTheme < 0 && g_cfg.theme == 0);
+  AddCheck(th, IDM_TH1, L(L_TH_LIGHT), currentTheme < 0 && g_cfg.theme == 1);
+  AddCheck(th, IDM_TH2, L(L_TH_ACRYLIC), currentTheme < 0 && g_cfg.theme == 2);
+  if (currentTheme >= 0)
+    AddCheck(th, IDM_THEME_0 + currentTheme, GfxCustomThemeName(currentTheme),
+             true);
+  AppendMenuW(th, MF_SEPARATOR, 0, nullptr);
+  AddMI(th, IDM_ACCENT, L(L_ACCENT), 0xE790);
+  if (g_cfg.accent >= 0)
+    AddMI(th, IDM_ACCENT_RESET, L(L_RESET), 0xE894);
+  AddMI(th, IDM_THEME_IMPORT, L(L_THEME_IMPORT), 0xE8B7);
   AppendMenuW(th, MF_SEPARATOR, 0, nullptr);
   AppendMenuW(th, MF_STRING | MF_GRAYED, 0, L(L_TRAY_ICON));
   AddCheck(th, IDM_TRI0, L(L_TRAY_AUTO), g_cfg.trayIcon == 0);
@@ -1508,7 +1580,7 @@ static void AppendThemeMenu(HMENU root) {
   AddCheck(th, IDM_UI0, L(L_TRAY_AUTO), g_cfg.uiIcon == 0);
   AddCheck(th, IDM_UI1, L(L_TH_DARK), g_cfg.uiIcon == 1);
   AddCheck(th, IDM_UI2, L(L_TH_LIGHT), g_cfg.uiIcon == 2);
-  AppendMenuW(root, MF_POPUP, (UINT_PTR)th, L(L_THEME));
+  AppendMenuW(root, MF_POPUP, (UINT_PTR)th, L(L_INTERFACE));
   IconLast(root, 0xE727);
 }
 
@@ -1836,13 +1908,14 @@ static void TrackMenu() {
 }
 
 static void SetWindowHeight(int h) {
-  if (ClientH() == h)
+  int ph = UiPx(h);
+  if (ClientH() == ph)
     return;
-  SetWindowPos(g_hwnd, nullptr, 0, 0, WIN_W, h,
+  SetWindowPos(g_hwnd, nullptr, 0, 0, UiPx(WIN_W), ph,
                SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW);
   InvalidateRect(g_hwnd, nullptr, FALSE);
   UpdateWindow(g_hwnd);
-  if (g_cfg.theme == THEME_ACRYLIC) {
+  if (GfxTheme() == THEME_ACRYLIC) {
     typedef HRESULT(WINAPI * FnDwmFlush)();
     static FnDwmFlush flush = nullptr;
     static bool init = false;
@@ -1972,9 +2045,47 @@ static void SnapUi() {
   g_panelFade = g_panelTarget;
   g_extraH = g_extraTarget;
   if (!g_inMove)
-    SetWindowHeight(WIN_H + (int)(g_extraH + 0.5f));
+    SetWindowHeight(WinBaseH() + (int)(g_extraH + 0.5f));
   KillTimer(g_hwnd, 16);
   g_uiTick = 0;
+  InvalidateRect(g_hwnd, nullptr, FALSE);
+}
+
+static void ApplyOpacity() {
+  if (!g_hwnd)
+    return;
+  LONG_PTR ex = GetWindowLongPtrW(g_hwnd, GWL_EXSTYLE);
+  bool use = g_cfg.opacity < 100 && GfxTheme() != THEME_ACRYLIC;
+  if (use) {
+    SetWindowLongPtrW(g_hwnd, GWL_EXSTYLE, ex | WS_EX_LAYERED);
+    SetLayeredWindowAttributes(g_hwnd, 0, (BYTE)(g_cfg.opacity * 255 / 100),
+                               LWA_ALPHA);
+  } else {
+    SetWindowLongPtrW(g_hwnd, GWL_EXSTYLE, ex & ~WS_EX_LAYERED);
+    SetWindowPos(g_hwnd, nullptr, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
+                     SWP_FRAMECHANGED);
+  }
+}
+
+static void UpdateExtraTarget() {
+  g_extraTarget = ClickerMode() ? (float)ClickAreaH() : 0.0f;
+  EnsureUiTimer();
+}
+
+static void RefreshThemeVisuals() {
+  ApplyWindowMaterial(g_hwnd);
+  ApplyOpacity();
+  if (IsWindow(g_abHwnd)) {
+    ApplyWindowMaterial(g_abHwnd);
+    InvalidateRect(g_abHwnd, nullptr, TRUE);
+  }
+  SendMessageW(g_hwnd, WM_SETICON, ICON_SMALL,
+               (LPARAM)LoadAppIconId(GfxUiIconId(), 16));
+  SendMessageW(g_hwnd, WM_SETICON, ICON_BIG,
+               (LPARAM)LoadAppIconId(GfxUiIconId(), 32));
+  TrayIconRefresh();
+  ConfigSave();
   InvalidateRect(g_hwnd, nullptr, FALSE);
 }
 
@@ -1994,7 +2105,7 @@ static void SetMode(int mode) {
   g_cfg.mode = mode;
   g_panelTarget = 0.0f;
   g_panelFade = 0.0f;
-  g_extraTarget = ClickerMode() ? (float)ClickAreaH() : 0.0f;
+  UpdateExtraTarget();
   ConfigSave();
   EnsureUiTimer();
   InvalidateRect(g_hwnd, nullptr, FALSE);
@@ -2083,8 +2194,7 @@ static void ClickCellAction(int i) {
   case 3:
     g_cfg.clickType = (g_cfg.clickType + 1) % 3;
     ConfigSave();
-    g_extraTarget = (float)ClickAreaH();
-    EnsureUiTimer();
+    UpdateExtraTarget();
     break;
   case 4: {
     int v = g_cfg.clickHold;
@@ -2125,9 +2235,9 @@ static void UiAnimateTick() {
     g_extraH += (g_extraTarget - g_extraH) * kh;
     if ((g_extraTarget - g_extraH) * (g_extraTarget - g_extraH) < 0.01f)
       g_extraH = g_extraTarget;
-    int nh = WIN_H + (int)(g_extraH + 0.5f);
+    int nh = UiPx(WinBaseH() + (int)(g_extraH + 0.5f));
     if (ClientH() != nh) {
-      SetWindowHeight(nh);
+      SetWindowHeight(WinBaseH() + (int)(g_extraH + 0.5f));
       resized = true;
     }
     active = true;
@@ -2141,7 +2251,7 @@ static void UiAnimateTick() {
 }
 
 static HICON TrayIconMake() {
-  bool light = g_cfg.theme == THEME_LIGHT;
+  bool light = GfxTheme() == THEME_LIGHT;
   if (g_cfg.trayIcon == 1)
     light = false;
   else if (g_cfg.trayIcon == 2)
@@ -2263,6 +2373,15 @@ static void HotkeyRegisterAll(HWND hwnd) {
 }
 
 static void DoCmd(int id) {
+  if (id >= IDM_THEME_0 && id < IDM_THEME_0 + 32) {
+    int i = id - IDM_THEME_0;
+    if (i < GfxCustomThemeCount()) {
+      g_cfg.themeFile = GfxCustomThemeFile(i);
+      GfxSetThemeFile(g_cfg.themeFile.c_str());
+      RefreshThemeVisuals();
+    }
+    return;
+  }
   switch (id) {
   case IDM_REC:
     if (ClickerMode())
@@ -2360,22 +2479,19 @@ static void DoCmd(int id) {
   case IDM_CLICK_TYPE1:
     g_cfg.clickType = 0;
     ConfigSave();
-    g_extraTarget = (float)ClickAreaH();
-    EnsureUiTimer();
+    UpdateExtraTarget();
     InvalidateRect(g_hwnd, nullptr, FALSE);
     break;
   case IDM_CLICK_TYPE2:
     g_cfg.clickType = 1;
     ConfigSave();
-    g_extraTarget = (float)ClickAreaH();
-    EnsureUiTimer();
+    UpdateExtraTarget();
     InvalidateRect(g_hwnd, nullptr, FALSE);
     break;
   case IDM_CLICK_TYPE3:
     g_cfg.clickType = 2;
     ConfigSave();
-    g_extraTarget = (float)ClickAreaH();
-    EnsureUiTimer();
+    UpdateExtraTarget();
     InvalidateRect(g_hwnd, nullptr, FALSE);
     break;
   case IDM_CLICK_HOLD: {
@@ -2809,18 +2925,79 @@ static void DoCmd(int id) {
   case IDM_TH1:
   case IDM_TH2:
     g_cfg.theme = id - IDM_TH0;
-    ApplyWindowMaterial(g_hwnd);
-    if (IsWindow(g_abHwnd)) {
-      ApplyWindowMaterial(g_abHwnd);
-      InvalidateRect(g_abHwnd, nullptr, TRUE);
-    }
-    SendMessageW(g_hwnd, WM_SETICON, ICON_SMALL,
-                 (LPARAM)LoadAppIconId(GfxUiIconId(), 16));
-    SendMessageW(g_hwnd, WM_SETICON, ICON_BIG,
-                 (LPARAM)LoadAppIconId(GfxUiIconId(), 32));
-    TrayIconRefresh();
-    ConfigSave();
+    g_cfg.themeFile.clear();
+    GfxSetThemeFile(nullptr);
+    RefreshThemeVisuals();
     break;
+  case IDM_ACCENT: {
+    COLORREF ac = g_cfg.accent >= 0 ? (COLORREF)g_cfg.accent : ThAccent();
+    CHOOSECOLORW cc = {sizeof(cc)};
+    cc.hwndOwner = g_hwnd;
+    cc.rgbResult = ac;
+    COLORREF cust[16] = {};
+    cc.lpCustColors = cust;
+    cc.Flags = CC_FULLOPEN | CC_RGBINIT;
+    if (ChooseColorW(&cc)) {
+      g_cfg.accent = (int)cc.rgbResult;
+      RefreshThemeVisuals();
+    }
+    break;
+  }
+  case IDM_ACCENT_RESET:
+    g_cfg.accent = -1;
+    RefreshThemeVisuals();
+    break;
+  case IDM_THEME_IMPORT: {
+    wchar_t exe[MAX_PATH];
+    GetModuleFileNameW(nullptr, exe, MAX_PATH);
+    wchar_t *slash = wcsrchr(exe, L'\\');
+    if (!slash)
+      break;
+    *(slash + 1) = 0;
+    std::wstring dir = std::wstring(exe) + L"themes";
+    CreateDirectoryW(dir.c_str(), nullptr);
+    wchar_t path[MAX_PATH] = L"";
+    OPENFILENAMEW o = {sizeof(o)};
+    o.hwndOwner = g_hwnd;
+    o.lpstrFilter = L"Theme JSON (*.json)\0*.json\0All files (*.*)\0*.*\0";
+    o.lpstrFile = path;
+    o.nMaxFile = MAX_PATH;
+    o.lpstrInitialDir = dir.c_str();
+    o.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+    if (!GetOpenFileNameW(&o))
+      break;
+    const wchar_t *base = wcsrchr(path, L'\\');
+    base = base ? base + 1 : path;
+    std::wstring dst = dir + L"\\" + base;
+    CopyFileW(path, dst.c_str(), FALSE);
+    g_cfg.themeFile = base;
+    GfxReloadThemes();
+    bool found = false;
+    for (int i = 0; i < GfxCustomThemeCount(); i++) {
+      if (g_cfg.themeFile == GfxCustomThemeFile(i)) {
+        found = true;
+        break;
+      }
+    }
+    if (found)
+      GfxSetThemeFile(g_cfg.themeFile.c_str());
+    else {
+      g_cfg.themeFile.clear();
+      GfxSetThemeFile(nullptr);
+      StatusShow(L(L_ST_INVALID), 2500);
+    }
+    RefreshThemeVisuals();
+    break;
+  }
+  case IDM_OPACITY: {
+    int v = g_cfg.opacity;
+    if (InputDialog(L(L_Q_OPACITY), v, 50, 100, v)) {
+      g_cfg.opacity = v;
+      ConfigSave();
+      ApplyOpacity();
+    }
+    break;
+  }
   case IDM_TRI0:
   case IDM_TRI1:
   case IDM_TRI2:
@@ -2925,6 +3102,15 @@ static void DoCmd(int id) {
     SetWindowPos(g_hwnd, g_cfg.topmost ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0,
                  0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     ConfigSave();
+    break;
+  case IDM_UISCALE:
+    g_cfg.uiScale = g_cfg.uiScale == 100   ? 125
+                    : g_cfg.uiScale == 125 ? 150
+                    : g_cfg.uiScale == 150 ? 200
+                                           : 100;
+    ConfigSave();
+    SetWindowHeight(WinBaseH() + (int)(g_extraH + 0.5f));
+    InvalidateRect(g_hwnd, nullptr, FALSE);
     break;
   case IDM_INSTALL:
     if (InstallToLocalApp())
@@ -3038,6 +3224,8 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
   case WM_NCHITTEST: {
     POINT pt = {GET_X_LPARAM(l), GET_Y_LPARAM(l)};
     ScreenToClient(hwnd, &pt);
+    pt.x = UiUnscale(pt.x);
+    pt.y = UiUnscale(pt.y);
     RECT rmin = GfxMinRect(WIN_W), rclose = GfxCloseRect(WIN_W),
          rpin = GfxPinRect(WIN_W);
     RECT ric = {0, 0, 32, TB_H};
@@ -3050,6 +3238,8 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
   }
   case WM_MOUSEMOVE: {
     POINT pt = {GET_X_LPARAM(l), GET_Y_LPARAM(l)};
+    pt.x = UiUnscale(pt.x);
+    pt.y = UiUnscale(pt.y);
     int nb = -1, nr = -1, nc = -1, nt = 0;
     bool panel = g_panelTarget > 0.5f;
     if (panel) {
@@ -3512,9 +3702,9 @@ static RECT InInputRow() {
 }
 
 static COLORREF InFieldColor(bool focus) {
-  if (g_cfg.theme == THEME_LIGHT)
+  if (GfxTheme() == THEME_LIGHT)
     return focus ? RGB(225, 225, 225) : RGB(238, 238, 238);
-  if (g_cfg.theme == THEME_ACRYLIC)
+  if (GfxTheme() == THEME_ACRYLIC)
     return focus ? RGB(34, 34, 34) : RGB(21, 21, 21);
   return focus ? RGB(46, 46, 46) : RGB(37, 37, 37);
 }
@@ -3622,8 +3812,8 @@ static LRESULT CALLBACK InputProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     HBITMAP bm = CreateCompatibleBitmap(hdc, rc.right, rc.bottom);
     HGDIOBJ old = SelectObject(mem, bm);
     Gdiplus::Graphics g(mem);
-    bool acry = g_cfg.theme == THEME_ACRYLIC;
-    bool light = g_cfg.theme == THEME_LIGHT;
+    bool acry = GfxTheme() == THEME_ACRYLIC;
+    bool light = GfxTheme() == THEME_LIGHT;
     Gdiplus::SolidBrush bg(acry ? GfxAcrylicBg() : GdiCol(ThBg()));
     g.FillRectangle(&bg, 0, 0, rc.right, rc.bottom);
     Gdiplus::Pen pen(acry ? Gdiplus::Color(180, 56, 56, 56)
@@ -3952,8 +4142,8 @@ static LRESULT CALLBACK AboutProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     HBITMAP bm = CreateCompatibleBitmap(hdc, rc.right, rc.bottom);
     HGDIOBJ old = SelectObject(mem, bm);
     Gdiplus::Graphics g(mem);
-    bool acry = g_cfg.theme == THEME_ACRYLIC;
-    bool light = g_cfg.theme == THEME_LIGHT;
+    bool acry = GfxTheme() == THEME_ACRYLIC;
+    bool light = GfxTheme() == THEME_LIGHT;
     g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
     g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeNone);
     Gdiplus::SolidBrush bg(acry ? GfxAcrylicBg() : GdiCol(ThBg()));
@@ -4299,18 +4489,20 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
   int x = g_cfg.x, y = g_cfg.y;
   g_extraH = ClickerMode() ? (float)ClickAreaH() : 0.0f;
   g_extraTarget = g_extraH;
-  int startH = WIN_H + (int)(g_extraH + 0.5f);
+  int startH = UiPx(WinBaseH() + (int)(g_extraH + 0.5f));
+  int ww = UiPx(WIN_W);
   int vx = GetSystemMetrics(SM_XVIRTUALSCREEN),
       vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
   int vw = GetSystemMetrics(SM_CXVIRTUALSCREEN),
       vh = GetSystemMetrics(SM_CYVIRTUALSCREEN);
-  if (x < vx - WIN_W + 20 || x > vx + vw - 20 || y < vy || y > vy + vh - 40) {
-    x = vx + (vw - WIN_W) / 2;
+  if (x < vx - ww + 20 || x > vx + vw - 20 || y < vy || y > vy + vh - 40) {
+    x = vx + (vw - ww) / 2;
     y = vy + (vh - startH) / 3;
   }
   g_hwnd = CreateWindowExW(0, L"OntyTaskMain", L"OntyTask",
-                           WS_POPUP | WS_SYSMENU | WS_MINIMIZEBOX, x, y, WIN_W,
+                           WS_POPUP | WS_SYSMENU | WS_MINIMIZEBOX, x, y, ww,
                            startH, nullptr, nullptr, hInst, nullptr);
+  ApplyOpacity();
 
   if (!cli.file.empty()) {
     if (Engine_Load(cli.file.c_str())) {

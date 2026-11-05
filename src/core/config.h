@@ -13,7 +13,11 @@ struct Config {
   int playCountdown;
   int recordMods, recordVk, playMods, playVk;
   int theme, lang, statusbarTop, autoupdate, trayIcon, uiIcon;
+  std::wstring themeFile;
+  int accent;
   int trayEnable;
+  int opacity;
+  int uiScale;
   int panicPause, panicScroll, panicEsc, panicMouseMove;
   int panicKeyCount;
   int panicKeyMods[MAX_PANIC_KEYS];

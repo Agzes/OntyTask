@@ -1,0 +1,16 @@
+{
+    "name": "Rosé Pine",
+    "dark": true,
+    "bg": "#191724",
+    "bg2": "#1F1D2E",
+    "text": "#E0DEF4",
+    "dim": "#6E6A86",
+    "border": "#302E3C",
+    "hover": "#242230",
+    "hover2": "#2E2C3A",
+    "accent": "#C4A7E7",
+    "record": "#EB6F92",
+    "play": "#9CCFD8",
+    "close": "#EB6F92",
+    "warn": "#F6C177"
+}

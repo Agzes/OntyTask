@@ -1,0 +1,16 @@
+{
+    "name": "Gruvbox Dark",
+    "dark": true,
+    "bg": "#282828",
+    "bg2": "#3C3836",
+    "text": "#EBDBB2",
+    "dim": "#928374",
+    "border": "#3F3D38",
+    "hover": "#333230",
+    "hover2": "#3D3B37",
+    "accent": "#D79921",
+    "record": "#FB4934",
+    "play": "#B8BB26",
+    "close": "#FB4934",
+    "warn": "#FABD2F"
+}

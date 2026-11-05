@@ -6,17 +6,19 @@ OntyTask provides several visual themes, tray icon options, and a configurable s
 
 ## 1. Visual Themes
 
-You can switch the interface theme anytime under **Menu -> Theme -> Interface theme**:
+You can switch the interface theme anytime under **Interface** in the menu:
 
 - **Dark Theme:** A sleek dark palette designed for low-light environments.
 - **Light Theme:** A high-contrast light design with native light popup menus.
 - **Acrylic Theme:** A modern semi-transparent blur effect using Windows DWM composition (Windows 10 and Windows 11).
 
+To use a JSON theme, open **Interface > Import theme JSON...**. The menu shows the active theme, and only the selected theme is checked. See the [theme gallery](Themes.md) for official palettes.
+
 ---
 
 ## 2. Tray and Window Icons
 
-Icon appearance can be adjusted under **Menu -> Theme**:
+Icon appearance can be adjusted under **Interface** in the menu:
 
 - **Tray icon:**
     - `Follow theme`: Automatically toggles between light and dark icons based on the active theme.

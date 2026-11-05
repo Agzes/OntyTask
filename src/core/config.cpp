@@ -243,6 +243,23 @@ void ConfigLoad() {
     g_cfg.loops = 1;
   if (g_cfg.theme < 0 || g_cfg.theme > 2)
     g_cfg.theme = defTheme;
+  wchar_t tf[MAX_PATH] = L"";
+  GetPrivateProfileStringW(L"OntyTask", L"theme_file", L"", tf, MAX_PATH,
+                           ini.c_str());
+  g_cfg.themeFile = tf;
+  g_cfg.accent = GetPrivateProfileIntW(L"OntyTask", L"accent", -1, ini.c_str());
+  if (g_cfg.accent < -1 || g_cfg.accent > 0xFFFFFF)
+    g_cfg.accent = -1;
+  g_cfg.opacity =
+      GetPrivateProfileIntW(L"OntyTask", L"opacity", 100, ini.c_str());
+  if (g_cfg.opacity < 50)
+    g_cfg.opacity = 50;
+  if (g_cfg.opacity > 100)
+    g_cfg.opacity = 100;
+  g_cfg.uiScale =
+      GetPrivateProfileIntW(L"OntyTask", L"ui_scale", 100, ini.c_str());
+  if (g_cfg.uiScale < 100 || g_cfg.uiScale > 200)
+    g_cfg.uiScale = 100;
   if (g_cfg.lang < 0 || g_cfg.lang > 3)
     g_cfg.lang = 1;
   g_cfg.recordMods =
@@ -304,6 +321,9 @@ void ConfigSave() {
   w(L"continuous", g_cfg.continuous);
   w(L"topmost", g_cfg.topmost);
   w(L"theme", g_cfg.theme);
+  WritePrivateProfileStringW(L"OntyTask", L"theme_file",
+                             g_cfg.themeFile.c_str(), ini.c_str());
+  w(L"accent", g_cfg.accent);
   w(L"lang", g_cfg.lang);
   w(L"statusbar_top", g_cfg.statusbarTop);
   w(L"statusbar_show", g_cfg.statusbarShow);
@@ -328,6 +348,8 @@ void ConfigSave() {
   w(L"autoupdate", g_cfg.autoupdate);
   w(L"tray_icon", g_cfg.trayIcon);
   w(L"tray_enable", g_cfg.trayEnable);
+  w(L"opacity", g_cfg.opacity);
+  w(L"ui_scale", g_cfg.uiScale);
   w(L"ui_icon", g_cfg.uiIcon);
   w(L"auto_minimize", g_cfg.autoMinimize);
   w(L"mode", g_cfg.mode);

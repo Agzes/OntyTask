@@ -1,0 +1,16 @@
+{
+    "name": "Vesper",
+    "dark": true,
+    "bg": "#101010",
+    "bg2": "#161616",
+    "text": "#FFFFFF",
+    "dim": "#A0A0A0",
+    "border": "#282828",
+    "hover": "#1C1C1C",
+    "hover2": "#232323",
+    "accent": "#FFC799",
+    "record": "#FF8080",
+    "play": "#99FFE4",
+    "close": "#FF5C5C",
+    "warn": "#FFC799"
+}

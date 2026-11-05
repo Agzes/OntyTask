@@ -1,0 +1,16 @@
+{
+    "name": "GitHub Light",
+    "dark": false,
+    "bg": "#FFFFFF",
+    "bg2": "#F6F8FA",
+    "text": "#24292F",
+    "dim": "#57606A",
+    "border": "#D7D8D9",
+    "hover": "#EDEDEE",
+    "hover2": "#E0E1E1",
+    "accent": "#0969DA",
+    "record": "#CF222E",
+    "play": "#1A7F37",
+    "close": "#CF222E",
+    "warn": "#9A6700"
+}

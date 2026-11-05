@@ -26,8 +26,8 @@
         "loops100": "100",
         "continuous": "连续 (∞)",
         "loops_custom2": "自定义...",
-        "theme": "主题",
         "interface_theme": "界面主题",
+        "interface": "界面",
         "theme_dark": "深色",
         "theme_light": "浅色",
         "theme_acrylic": "亚克力",
@@ -167,6 +167,12 @@
         "q_rec_countdown": "录制前倒计时（秒，0 = 关闭）",
         "countdown": "%d 秒后开始录制...",
         "q_play_countdown": "播放前倒计时（秒，0 = 关闭）",
-        "countdown_play": "%d 秒后开始播放..."
+        "countdown_play": "%d 秒后开始播放...",
+        "opacity": "不透明度",
+        "q_opacity": "窗口不透明度（百分比，50-100）",
+        "accent": "强调色",
+        "reset": "重置",
+        "theme_import": "导入主题 JSON...",
+        "scale": "界面缩放"
     }
 }

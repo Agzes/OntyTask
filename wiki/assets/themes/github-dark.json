@@ -1,0 +1,16 @@
+{
+    "name": "GitHub Dark",
+    "dark": true,
+    "bg": "#0D1117",
+    "bg2": "#161B22",
+    "text": "#C9D1D9",
+    "dim": "#8B949E",
+    "border": "#23282E",
+    "hover": "#181C22",
+    "hover2": "#21262C",
+    "accent": "#58A6FF",
+    "record": "#F85149",
+    "play": "#3FB950",
+    "close": "#F85149",
+    "warn": "#D29922"
+}
