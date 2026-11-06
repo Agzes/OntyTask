@@ -504,7 +504,7 @@ static void Paint() {
   g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeNone);
   Gdiplus::SolidBrush bg(acry ? GfxAcrylicBg() : GdiCol(ThBg()));
   g.FillRectangle(&bg, 0, 0, lw, lh);
-  Gdiplus::Pen border(acry ? Gdiplus::Color(160, 56, 56, 56)
+  Gdiplus::Pen border(acry ? Gdiplus::Color(100, 42, 42, 42)
                            : GdiCol(ThBorder()));
   {
     Gdiplus::GraphicsState st = g.Save();
@@ -526,7 +526,7 @@ static void Paint() {
   if (extraA > 255)
     extraA = 255;
 
-  Gdiplus::SolidBrush gborder(acry ? Gdiplus::Color(255, 48, 48, 48)
+  Gdiplus::SolidBrush gborder(acry ? Gdiplus::Color(255, 32, 32, 32)
                                    : GdiCol(ThBorder()));
 
   auto vline = [&](REAL x, REAL y, REAL h) {
@@ -3705,7 +3705,7 @@ static COLORREF InFieldColor(bool focus) {
   if (GfxTheme() == THEME_LIGHT)
     return focus ? RGB(225, 225, 225) : RGB(238, 238, 238);
   if (GfxTheme() == THEME_ACRYLIC)
-    return focus ? RGB(34, 34, 34) : RGB(21, 21, 21);
+    return focus ? RGB(4, 4, 4) : RGB(0, 0, 0);
   return focus ? RGB(46, 46, 46) : RGB(37, 37, 37);
 }
 
@@ -3714,6 +3714,15 @@ static LRESULT CALLBACK InputEditProc(HWND h, UINT m, WPARAM w, LPARAM l) {
   if (m == WM_KEYDOWN && (w == VK_RETURN || w == VK_ESCAPE)) {
     PostMessageW(GetParent(h), w == VK_RETURN ? WM_IN_OK : WM_IN_CANCEL, 0, 0);
     return 0;
+  }
+  if (m == WM_ERASEBKGND) {
+    HDC dc = (HDC)w;
+    RECT r;
+    GetClientRect(h, &r);
+    HBRUSH br = CreateSolidBrush(InFieldColor(g_in && g_in->focus));
+    FillRect(dc, &r, br);
+    DeleteObject(br);
+    return 1;
   }
   return CallWindowProcW(old, h, m, w, l);
 }
@@ -3729,6 +3738,7 @@ static LRESULT CALLBACK InputProc(HWND h, UINT m, WPARAM w, LPARAM l) {
                   (d->isFloat ? 0 : ES_NUMBER);
     d->edit = CreateWindowExW(0, L"EDIT", L"", style, 14, 60, IN_W - 28, 20, h,
                               (HMENU)1, g_hInst, nullptr);
+    SetWindowTheme(d->edit, L"", L"");
     SendMessageW(d->edit, WM_SETFONT, (WPARAM)ThFont(10), TRUE);
     WNDPROC old = (WNDPROC)SetWindowLongPtrW(d->edit, GWLP_WNDPROC,
                                              (LONG_PTR)InputEditProc);
@@ -3816,12 +3826,14 @@ static LRESULT CALLBACK InputProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     bool light = GfxTheme() == THEME_LIGHT;
     Gdiplus::SolidBrush bg(acry ? GfxAcrylicBg() : GdiCol(ThBg()));
     g.FillRectangle(&bg, 0, 0, rc.right, rc.bottom);
-    Gdiplus::Pen pen(acry ? Gdiplus::Color(180, 56, 56, 56)
+    Gdiplus::Pen pen(acry ? Gdiplus::Color(100, 42, 42, 42)
                           : GdiCol(ThBorder()));
     g.DrawRectangle(&pen, 0, 0, rc.right - 1, rc.bottom - 1);
     GfxChrome(g, mem, rc.right, L(L_SETTINGS), d->hover == 3 ? 2 : 0, CHB_SEP);
     Gdiplus::SolidBrush txt(GdiCol(ThText()));
-    Gdiplus::SolidBrush gsep(GdiCol(ThBorder()));
+    COLORREF sepCol =
+        GfxTheme() == THEME_ACRYLIC ? RGB(64, 64, 64) : ThBorder();
+    Gdiplus::SolidBrush gsep(GdiCol(sepCol));
 
     RECT rb = InBannerRect();
     Gdiplus::SolidBrush banf(acry ? Gdiplus::Color(40, 50, 50, 50)

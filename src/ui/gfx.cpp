@@ -203,7 +203,7 @@ static COLORREF Blend(COLORREF a, COLORREF b, float t) {
 
 static const COLORREF *Palette() {
   static const COLORREF pal[3][3] = {{0x1E1E1E, 0x272727, 0xD6D6D6},
-                                     {0xF8F9FA, 0xFFFFFF, 0x15181C},
+                                     {0xEFEFEF, 0xFFFFFF, 0x1C1815},
                                      {0x181818, 0x222222, 0xEDEDED}};
   if (g_customTheme) {
     static COLORREF cpal[3];
@@ -224,29 +224,33 @@ COLORREF ThText() { return Palette()[2]; }
 COLORREF ThDim() {
   if (g_customTheme && g_customTheme->hasDim)
     return g_customTheme->dim;
-  return Blend(ThText(), ThBg(), GfxTheme() == THEME_LIGHT ? 0.38f : 0.50f);
+  return Blend(ThText(), ThBg(), GfxTheme() == THEME_LIGHT ? 0.34f : 0.50f);
 }
 COLORREF ThBorder() {
   if (g_customTheme && g_customTheme->hasBorder)
     return g_customTheme->border;
-  return Blend(ThBg(), ThText(), GfxTheme() == THEME_LIGHT ? 0.18f : 0.12f);
+  if (GfxTheme() == THEME_LIGHT)
+    return Blend(ThBg(), ThText(), 0.24f);
+  if (GfxTheme() == THEME_ACRYLIC)
+    return Blend(ThBg(), ThText(), 0.07f);
+  return Blend(ThBg(), ThText(), 0.12f);
 }
 COLORREF ThHover() {
   if (g_customTheme && g_customTheme->hasHover)
     return g_customTheme->hover;
-  return Blend(ThBg(), ThText(), GfxTheme() == THEME_LIGHT ? 0.08f : 0.06f);
+  return Blend(ThBg(), ThText(), GfxTheme() == THEME_LIGHT ? 0.10f : 0.06f);
 }
 COLORREF ThHover2() {
   if (g_customTheme && g_customTheme->hasHover2)
     return g_customTheme->hover2;
-  return Blend(ThBg(), ThText(), GfxTheme() == THEME_LIGHT ? 0.14f : 0.11f);
+  return Blend(ThBg(), ThText(), GfxTheme() == THEME_LIGHT ? 0.17f : 0.11f);
 }
 COLORREF ThAccent() {
   if (g_cfg.accent >= 0)
     return (COLORREF)g_cfg.accent;
   if (g_customTheme)
     return g_customTheme->accent;
-  return GfxTheme() == THEME_LIGHT ? RGB(43, 127, 181) : RGB(96, 180, 224);
+  return GfxTheme() == THEME_LIGHT ? RGB(31, 110, 158) : RGB(96, 180, 224);
 }
 COLORREF ThRecord() {
   if (g_customTheme)
@@ -445,7 +449,7 @@ void GfxThemedButton(Gdiplus::Graphics &g, HDC hdc, const RECT &r, int state,
     fill = state == 2   ? Gdiplus::Color(120, 90, 90, 90)
            : state == 1 ? Gdiplus::Color(90, 70, 70, 70)
                         : Gdiplus::Color(60, 50, 50, 50);
-    border = Gdiplus::Color(160, 56, 56, 56);
+    border = Gdiplus::Color(100, 42, 42, 42);
   } else {
     COLORREF c = state == 2 ? ThHover2() : state == 1 ? ThHover() : ThBg2();
     fill = GdiCol(c);
@@ -511,7 +515,7 @@ void GfxChrome(Gdiplus::Graphics &g, HDC hdc, int width, const wchar_t *title,
   g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
   g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeNone);
   if (buttons & CHB_SEP) {
-    Gdiplus::SolidBrush sep(acry ? Gdiplus::Color(45, 255, 255, 255)
+    Gdiplus::SolidBrush sep(acry ? Gdiplus::Color(40, 110, 110, 110)
                                  : GdiCol(ThBorder()));
     g.FillRectangle(&sep, 0.0f, 30.0f, (REAL)width, 1.0f);
   }
