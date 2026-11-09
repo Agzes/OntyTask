@@ -94,6 +94,11 @@ enum {
   IDM_SB_TOP,
   IDM_SB_BOTTOM,
   IDM_SB_FOLLOW,
+  IDM_SB_PROGRESS,
+  IDM_SB_ETA,
+  IDM_SB_LEFT,
+  IDM_SB_CENTER,
+  IDM_SB_RIGHT,
   IDM_ASSOC_ONTY = 185,
   IDM_TOPMOST = 190,
   IDM_AUTOMINIMIZE = 191,
@@ -459,14 +464,24 @@ static std::wstring EngineStatusText() {
   }
   if (st == ST_PLAY) {
     FmtMmSs(b, 32, GetTickCount() - g_startTick);
-    wchar_t b2[128];
+    wchar_t b2[160];
     std::wstring stopKey = ActiveStopKeysText();
     if (g_cfg.continuous)
       swprintf_s(b2, L"PLAY %s \u221E \u2022 %s: %s", b, L(L_STOP_BIND),
                  stopKey.c_str());
-    else
-      swprintf_s(b2, L"PLAY %s (%d/%d) \u2022 %s: %s", b, g_playLoop.load() + 1,
-                 g_cfg.loops, L(L_STOP_BIND), stopKey.c_str());
+    else {
+      double eta = Engine_PlayEtaMs();
+      if (g_cfg.statusbarEta && eta >= 0.0) {
+        wchar_t e[32];
+        FmtMmSs(e, 32, (DWORD)(eta + 0.5));
+        swprintf_s(b2, L"PLAY %s (%d/%d) %s %s \u2022 %s: %s", b,
+                   g_playLoop.load() + 1, g_cfg.loops, L(L_ETA), e,
+                   L(L_STOP_BIND), stopKey.c_str());
+      } else
+        swprintf_s(b2, L"PLAY %s (%d/%d) \u2022 %s: %s", b,
+                   g_playLoop.load() + 1, g_cfg.loops, L(L_STOP_BIND),
+                   stopKey.c_str());
+    }
     return b2;
   }
   if (Clicker_IsRunning()) {
@@ -1600,8 +1615,15 @@ static void AppendStatusbarMenu(HMENU root) {
   HMENU sb = CreatePopupMenu();
   AddCheck(sb, IDM_SB_SHOW, L(L_SB_ENABLE), g_cfg.statusbarShow != 0);
   AppendMenuW(sb, MF_SEPARATOR, 0, nullptr);
+  AddCheck(sb, IDM_SB_PROGRESS, L(L_PROGRESS), g_cfg.statusbarProgress != 0);
+  AddCheck(sb, IDM_SB_ETA, L(L_ETA), g_cfg.statusbarEta != 0);
+  AppendMenuW(sb, MF_SEPARATOR, 0, nullptr);
   AddCheck(sb, IDM_SB_TOP, L(L_SB_TOP), g_cfg.statusbarTop != 0);
   AddCheck(sb, IDM_SB_BOTTOM, L(L_SB_BOTTOM), g_cfg.statusbarTop == 0);
+  AppendMenuW(sb, MF_SEPARATOR, 0, nullptr);
+  AddCheck(sb, IDM_SB_LEFT, L(L_SB_LEFT), g_cfg.statusbarAlign == 1);
+  AddCheck(sb, IDM_SB_CENTER, L(L_SB_CENTER), g_cfg.statusbarAlign == 0);
+  AddCheck(sb, IDM_SB_RIGHT, L(L_SB_RIGHT), g_cfg.statusbarAlign == 2);
   AppendMenuW(sb, MF_SEPARATOR, 0, nullptr);
   AddCheck(sb, IDM_SB_FOLLOW, L(L_SB_FOLLOW_MONITOR),
            g_cfg.statusbarFollowCursor != 0);
@@ -2328,6 +2350,9 @@ static void StatusTick() {
   std::wstring s = EngineStatusText();
   int st = g_state.load();
   bool click = Clicker_IsRunning();
+  StatusProgress((g_cfg.statusbarProgress && !g_cfg.continuous)
+                     ? Engine_PlayProgress()
+                     : -1.0);
   if (g_clickPrev && !click && Clicker_StopReason() > 0)
     StatusShow(L(L_CLICK_STOPPED), 2000);
   g_clickPrev = click;
@@ -2905,14 +2930,41 @@ static void DoCmd(int id) {
     break;
   case IDM_SB_TOP:
     g_cfg.statusbarTop = 1;
+    StatusRelayout();
     ConfigSave();
     break;
   case IDM_SB_BOTTOM:
     g_cfg.statusbarTop = 0;
+    StatusRelayout();
+    ConfigSave();
+    break;
+  case IDM_SB_LEFT:
+    g_cfg.statusbarAlign = 1;
+    StatusRelayout();
+    ConfigSave();
+    break;
+  case IDM_SB_CENTER:
+    g_cfg.statusbarAlign = 0;
+    StatusRelayout();
+    ConfigSave();
+    break;
+  case IDM_SB_RIGHT:
+    g_cfg.statusbarAlign = 2;
+    StatusRelayout();
     ConfigSave();
     break;
   case IDM_SB_FOLLOW:
     g_cfg.statusbarFollowCursor = !g_cfg.statusbarFollowCursor;
+    ConfigSave();
+    break;
+  case IDM_SB_PROGRESS:
+    g_cfg.statusbarProgress = !g_cfg.statusbarProgress;
+    if (!g_cfg.statusbarProgress)
+      StatusProgress(-1.0);
+    ConfigSave();
+    break;
+  case IDM_SB_ETA:
+    g_cfg.statusbarEta = !g_cfg.statusbarEta;
     ConfigSave();
     break;
   case IDM_ASSOC_ONTY: {

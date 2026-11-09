@@ -976,6 +976,61 @@ void Engine_PlayStop() {
   }
 }
 
+static double ActionDurationMs(const MAc &a) {
+  if (a.type == A_MOVE) {
+    if (a.path.empty())
+      return 0.0;
+    double d = (double)a.delay;
+    for (WORD pd : a.pdelays)
+      d += (double)pd;
+    if (a.mUp)
+      d += 10.0;
+    return d;
+  }
+  return (double)a.delay;
+}
+
+static double LoopDurationMs() {
+  double d = 0.0;
+  for (const MAc &a : g_events)
+    d += ActionDurationMs(a);
+  return d;
+}
+
+static double PlaybackDurationMs() {
+  if (g_cfg.continuous)
+    return -1.0;
+  int loops = g_cfg.loops < 1 ? 1 : g_cfg.loops;
+  double loopMs = LoopDurationMs() * DelayFactor();
+  return loopMs * (double)loops + (double)g_cfg.loopDelay * (double)(loops - 1);
+}
+
+double Engine_PlayProgress() {
+  if (g_state.load() != ST_PLAY)
+    return -1.0;
+  double total = PlaybackDurationMs();
+  if (total <= 0.0)
+    return -1.0;
+  DWORD elapsed = GetTickCount() - g_startTick;
+  double p = (double)elapsed / total;
+  if (p < 0.0)
+    return 0.0;
+  if (p > 1.0)
+    return 1.0;
+  return p;
+}
+
+double Engine_PlayEtaMs() {
+  if (g_state.load() != ST_PLAY || g_cfg.continuous)
+    return -1.0;
+  double total = PlaybackDurationMs();
+  if (total <= 0.0)
+    return 0.0;
+  DWORD elapsed = GetTickCount() - g_startTick;
+  double remain = total - (double)elapsed;
+  return remain > 0.0 ? remain : 0.0;
+}
+
 void Engine_Shutdown() {
   if (g_state.load() == ST_REC)
     Engine_RecordStop();

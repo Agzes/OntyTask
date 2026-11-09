@@ -23,6 +23,8 @@ struct Config {
   int panicKeyMods[MAX_PANIC_KEYS];
   int panicKeyVk[MAX_PANIC_KEYS];
   int statusbarShow, statusbarFollowCursor;
+  int statusbarProgress, statusbarEta;
+  int statusbarAlign;
   int autoMinimize;
   int mode;
   int clickTarget, clickButton, clickType;

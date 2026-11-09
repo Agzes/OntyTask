@@ -112,6 +112,14 @@ void ConfigLoad() {
       GetPrivateProfileIntW(L"OntyTask", L"statusbar_show", 1, ini.c_str());
   g_cfg.statusbarFollowCursor = GetPrivateProfileIntW(
       L"OntyTask", L"statusbar_follow_monitor", 1, ini.c_str());
+  g_cfg.statusbarProgress =
+      GetPrivateProfileIntW(L"OntyTask", L"statusbar_progress", 1, ini.c_str());
+  g_cfg.statusbarEta =
+      GetPrivateProfileIntW(L"OntyTask", L"statusbar_eta", 1, ini.c_str());
+  g_cfg.statusbarAlign =
+      GetPrivateProfileIntW(L"OntyTask", L"statusbar_align", 0, ini.c_str());
+  if (g_cfg.statusbarAlign < 0 || g_cfg.statusbarAlign > 2)
+    g_cfg.statusbarAlign = 0;
   g_cfg.panicPause =
       GetPrivateProfileIntW(L"OntyTask", L"panic_pause", 1, ini.c_str());
   g_cfg.panicScroll =
@@ -328,6 +336,9 @@ void ConfigSave() {
   w(L"statusbar_top", g_cfg.statusbarTop);
   w(L"statusbar_show", g_cfg.statusbarShow);
   w(L"statusbar_follow_monitor", g_cfg.statusbarFollowCursor);
+  w(L"statusbar_progress", g_cfg.statusbarProgress);
+  w(L"statusbar_eta", g_cfg.statusbarEta);
+  w(L"statusbar_align", g_cfg.statusbarAlign);
   w(L"panic_pause", g_cfg.panicPause);
   w(L"panic_scroll", g_cfg.panicScroll);
   w(L"panic_esc", g_cfg.panicEsc);

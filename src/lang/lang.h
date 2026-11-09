@@ -49,6 +49,9 @@ enum LStrId {
   L_SB_ENABLE,
   L_SB_TOP,
   L_SB_BOTTOM,
+  L_SB_LEFT,
+  L_SB_CENTER,
+  L_SB_RIGHT,
   L_SB_FOLLOW_MONITOR,
   L_ASSOC_ONTY,
   L_ASSOC_SUCCESS,
@@ -174,6 +177,8 @@ enum LStrId {
   L_RESET,
   L_THEME_IMPORT,
   L_SCALE,
+  L_PROGRESS,
+  L_ETA,
   L_COUNT
 };
 

@@ -11,6 +11,7 @@ static std::wstring g_msg;
 static bool g_persistent = false;
 static int g_alpha = 0;
 static int g_alphaTarget = 0;
+static double g_progress = -1.0;
 static double g_pos = 0;
 static double g_posTarget = 0;
 static bool g_engaged = false;
@@ -64,6 +65,15 @@ static HMONITOR GetTargetMonitor() {
   return MonitorFromWindow(g_hwnd ? g_hwnd : g_sb, MONITOR_DEFAULTTONEAREST);
 }
 
+static int HorizontalX(const MONITORINFO &mi) {
+  int pad = Sbx();
+  if (g_cfg.statusbarAlign == 1)
+    return mi.rcWork.left + pad;
+  if (g_cfg.statusbarAlign == 2)
+    return mi.rcWork.right - g_w - pad;
+  return mi.rcWork.left + ((mi.rcWork.right - mi.rcWork.left) - g_w) / 2;
+}
+
 static void Layout() {
   if (!g_sb)
     return;
@@ -73,7 +83,7 @@ static void Layout() {
   MONITORINFO mi = {sizeof(mi)};
   GetMonitorInfoW(mon, &mi);
   int h = SbH();
-  int x = mi.rcWork.left + ((mi.rcWork.right - mi.rcWork.left) - g_w) / 2;
+  int x = HorizontalX(mi);
   int topY = mi.rcWork.top + Sby();
   int botY = mi.rcWork.bottom - h - Sby();
   int y = (int)(topY + (botY - topY) * g_pos);
@@ -89,7 +99,7 @@ static RECT HomeRect() {
   MONITORINFO mi = {sizeof(mi)};
   GetMonitorInfoW(mon, &mi);
   int h = SbH();
-  int x = mi.rcWork.left + ((mi.rcWork.right - mi.rcWork.left) - g_w) / 2;
+  int x = HorizontalX(mi);
   int y =
       g_cfg.statusbarTop ? mi.rcWork.top + Sby() : mi.rcWork.bottom - h - Sby();
   RECT r = {x, y, x + g_w, y + h};
@@ -169,6 +179,18 @@ static LRESULT CALLBACK SbProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l) {
                        (REAL)rc.bottom);
       g.DrawString(s.c_str(), -1, &f, r, &sf, &tb);
     }
+    if (g_progress >= 0.0) {
+      int barH = MulDiv(3, g_dpi, 96);
+      int barY = rc.bottom - barH;
+      Gdiplus::SolidBrush track(GdiCol(ThHover()));
+      g.FillRectangle(&track, 0.0f, (REAL)barY, (REAL)rc.right, (REAL)barH);
+      double p = g_progress > 1.0 ? 1.0 : g_progress;
+      int fillW = (int)(rc.right * p + 0.5);
+      if (fillW > 0) {
+        Gdiplus::SolidBrush fill(GdiCol(ThAccent()));
+        g.FillRectangle(&fill, 0.0f, (REAL)barY, (REAL)fillW, (REAL)barH);
+      }
+    }
     BitBlt(hdc, 0, 0, rc.right, rc.bottom, mem, 0, 0, SRCCOPY);
     SelectObject(mem, old);
     DeleteObject(bm);
@@ -241,6 +263,7 @@ void StatusShow(const wchar_t *msg, UINT ms) {
   g_msg = msg;
   g_dirty = true;
   g_persistent = false;
+  g_progress = -1.0;
   KillTimer(g_sb, 12);
   if (ms)
     SetTimer(g_sb, 12, ms, nullptr);
@@ -262,6 +285,7 @@ void StatusPersistent(const wchar_t *msg) {
   g_msg = msg;
   g_dirty = true;
   g_persistent = true;
+  g_progress = -1.0;
   KillTimer(g_sb, 12);
   g_pos = Home();
   g_posTarget = Home();
@@ -279,10 +303,28 @@ void StatusUpdate(const wchar_t *msg) {
   Layout();
 }
 
+void StatusProgress(double progress) {
+  if (progress < 0.0)
+    progress = -1.0;
+  else if (progress > 1.0)
+    progress = 1.0;
+  if (fabs(progress - g_progress) < 0.001)
+    return;
+  g_progress = progress;
+  if (g_sb && IsWindow(g_sb))
+    InvalidateRect(g_sb, nullptr, FALSE);
+}
+
+void StatusRelayout() {
+  if (g_sb && IsWindow(g_sb))
+    Layout();
+}
+
 void StatusHide() {
   if (!g_sb)
     return;
   g_persistent = false;
+  g_progress = -1.0;
   KillTimer(g_sb, 12);
   g_alphaTarget = 0;
   SetTimer(g_sb, 10, 16, nullptr);

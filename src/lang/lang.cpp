@@ -65,6 +65,9 @@ static const char *kKeys[L_COUNT] = {
     "sb_enable",
     "sb_top",
     "sb_bottom",
+    "sb_left",
+    "sb_center",
+    "sb_right",
     "sb_follow_monitor",
     "assoc_onty",
     "assoc_success",
@@ -190,6 +193,8 @@ static const char *kKeys[L_COUNT] = {
     "reset",
     "theme_import",
     "scale",
+    "progress",
+    "eta",
 };
 
 static bool ReadResourceText(int id, std::string &out) {

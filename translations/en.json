@@ -49,6 +49,9 @@
         "sb_enable": "Show status bar",
         "sb_top": "Top of screen",
         "sb_bottom": "Bottom of screen",
+        "sb_left": "Left",
+        "sb_center": "Center",
+        "sb_right": "Right",
         "sb_follow_monitor": "Follow cursor monitor",
         "assoc_onty": "Associate .onty files",
         "assoc_success": ".onty files registered",
@@ -173,6 +176,8 @@
         "accent": "Accent color",
         "reset": "Reset",
         "theme_import": "Import theme JSON...",
-        "scale": "Interface scale"
+        "scale": "Interface scale",
+        "progress": "Progress bar",
+        "eta": "ETA"
     }
 }

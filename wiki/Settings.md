@@ -32,16 +32,21 @@ Icon appearance can be adjusted under **Interface** in the menu:
 
 OntyTask features a lightweight, borderless status HUD that gives real-time visual feedback:
 
-- **Active State:** Displays timer and loop status (e.g. `REC 00:02 • Stop: Ctrl+Shift+Alt+R` or `PLAY 00:03 (1/5) • Stop: Pause`).
+- **Active State:** Displays timer and loop status, plus the remaining time and a progress bar for a fixed loop count (e.g. `PLAY 00:03 (1/5) ETA 00:12`).
 - **Toast Alerts:** Shows brief notifications when files are saved, shortcuts conflict, or settings change.
 
 ### Configuration
 
-Under **Menu -> Status bar**:
+Under **Status bar** in the menu:
 
 - **Show status bar:** Toggles the HUD on or off.
+- **Progress bar:** Shows overall playback progress across the full width of the HUD.
+- **ETA:** Shows the estimated time left during playback.
 - **Top / Bottom of screen:** Sets the default screen position.
+- **Left / Center / Right:** Sets the horizontal position. Together with top or bottom this gives all four corners.
 - **Follow cursor monitor:** Automatically moves the status bar to whichever monitor currently contains your mouse cursor.
+
+Progress and ETA are shown only for a fixed number of loops. In continuous mode they are hidden.
 
 ### Cursor Evasion
 

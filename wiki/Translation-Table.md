@@ -63,6 +63,9 @@ If you're creating a translation for another language, this table shows you wher
 | `sb_enable`          | Show status bar                                                          | Показывать статус-бар                                                          | Status bar menu           | Toggle on/off            |
 | `sb_top`             | Top of screen                                                            | Вверху экрана                                                                  | Status bar menu           | Position at top          |
 | `sb_bottom`          | Bottom of screen                                                         | Внизу экрана                                                                   | Status bar menu           | Position at bottom       |
+| `sb_left`            | Left                                                                     | Слева                                                                          | Status bar menu           | Align left               |
+| `sb_center`          | Center                                                                   | По центру                                                                      | Status bar menu           | Align center             |
+| `sb_right`           | Right                                                                    | Справа                                                                         | Status bar menu           | Align right              |
 | `sb_follow_monitor`  | Follow cursor monitor                                                    | Следовать за монитором курсора                                                 | Status bar menu           | Move across screens      |
 | `assoc_onty`         | Associate .onty files                                                    | Ассоциировать файлы .onty                                                      | Main menu                 | Register file type       |
 | `assoc_success`      | .onty files registered                                                   | Файлы .onty привязаны                                                          | Status notification       | Toast message            |
@@ -182,6 +185,8 @@ If you're creating a translation for another language, this table shows you wher
 | `reset`              | Reset                                                                    | Сбросить                                                                       | Theme menu                | Reset accent             |
 | `theme_import`       | Import theme JSON...                                                     | Импорт темы JSON...                                                            | Interface menu            | Import JSON file         |
 | `scale`              | Interface scale                                                          | Масштаб интерфейса                                                             | Main menu                 | UI scale                 |
+| `progress`           | Progress bar                                                             | Прогресс-бар                                                                   | Status bar                | Playback progress        |
+| `eta`                | ETA                                                                      | Осталось                                                                       | Status bar                | Playback time left       |
 
 ---
 

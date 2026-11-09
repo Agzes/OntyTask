@@ -49,6 +49,9 @@
         "sb_enable": "显示状态栏",
         "sb_top": "屏幕顶部",
         "sb_bottom": "屏幕底部",
+        "sb_left": "左",
+        "sb_center": "居中",
+        "sb_right": "右",
         "sb_follow_monitor": "跟随光标所在显示器",
         "assoc_onty": "关联 .onty 文件",
         "assoc_success": ".onty 文件已关联",
@@ -173,6 +176,8 @@
         "accent": "强调色",
         "reset": "重置",
         "theme_import": "导入主题 JSON...",
-        "scale": "界面缩放"
+        "scale": "界面缩放",
+        "progress": "进度条",
+        "eta": "剩余"
     }
 }

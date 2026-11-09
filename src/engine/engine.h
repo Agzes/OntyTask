@@ -46,6 +46,8 @@ bool Engine_Record();
 bool Engine_RecordStop();
 bool Engine_Play();
 void Engine_PlayStop();
+double Engine_PlayProgress();
+double Engine_PlayEtaMs();
 void Engine_Shutdown();
 bool Engine_Save(const wchar_t *path);
 bool Engine_Load(const wchar_t *path);
