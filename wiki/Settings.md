@@ -42,6 +42,7 @@ Under **Status bar** in the menu:
 - **Show status bar:** Toggles the HUD on or off.
 - **Progress bar:** Shows overall playback progress across the full width of the HUD.
 - **ETA:** Shows the estimated time left during playback.
+- **Elevated window warning:** While recording, playing, or clicking, the HUD warns when the active window or the window under the cursor runs as administrator and OntyTask does not.
 - **Top / Bottom of screen:** Sets the default screen position.
 - **Left / Center / Right:** Sets the horizontal position. Together with top or bottom this gives all four corners.
 - **Follow cursor monitor:** Automatically moves the status bar to whichever monitor currently contains your mouse cursor.

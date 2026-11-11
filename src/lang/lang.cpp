@@ -84,6 +84,8 @@ static const char *kKeys[L_COUNT] = {
     "status_nothing",
     "status_invalid",
     "status_conflict",
+    "elevated_warn",
+    "elevated_cursor",
     "status_max",
     "status_uptodate",
     "status_updatefail",

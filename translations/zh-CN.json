@@ -68,6 +68,8 @@
         "status_nothing": "没有录制内容",
         "status_invalid": "文件无效",
         "status_conflict": "快捷键冲突",
+        "elevated_warn": "当前窗口需要管理员权限：请以管理员身份运行 OntyTask",
+        "elevated_cursor": "光标下的窗口需要管理员权限：请以管理员身份运行 OntyTask",
         "status_max": "已达事件上限",
         "status_uptodate": "已是最新版本",
         "status_updatefail": "检查更新失败",

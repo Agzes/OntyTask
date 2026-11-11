@@ -1993,6 +1993,53 @@ static void RecordCountdownTick() {
   InvalidateRect(g_hwnd, nullptr, FALSE);
 }
 
+static bool TokenIsElevated(HANDLE proc) {
+  HANDLE tok = nullptr;
+  if (!OpenProcessToken(proc, TOKEN_QUERY, &tok))
+    return false;
+  TOKEN_ELEVATION te = {};
+  DWORD size = 0;
+  BOOL ok = GetTokenInformation(tok, TokenElevation, &te, sizeof(te), &size);
+  CloseHandle(tok);
+  return ok && te.TokenIsElevated != 0;
+}
+
+static bool WindowElevated(HWND h) {
+  if (!h)
+    return false;
+  DWORD pid = 0;
+  GetWindowThreadProcessId(h, &pid);
+  if (!pid || pid == GetCurrentProcessId())
+    return false;
+  HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+  if (!proc)
+    return false;
+  bool elevated = TokenIsElevated(proc);
+  CloseHandle(proc);
+  return elevated;
+}
+
+static bool SelfElevated() {
+  static int value = -1;
+  if (value < 0)
+    value = TokenIsElevated(GetCurrentProcess()) ? 1 : 0;
+  return value == 1;
+}
+
+static bool ForegroundWindowElevated() {
+  return WindowElevated(GetForegroundWindow());
+}
+
+static bool CursorWindowElevated() {
+  POINT pt = {};
+  if (!GetCursorPos(&pt))
+    return false;
+  HWND h = WindowFromPoint(pt);
+  if (!h)
+    return false;
+  return WindowElevated(GetAncestor(h, GA_ROOT));
+}
+
 static void StartRecordWithCountdown() {
   if (g_cfg.recordCountdown > 0) {
     g_recCountdown = g_cfg.recordCountdown;
@@ -2350,13 +2397,21 @@ static void StatusTick() {
   std::wstring s = EngineStatusText();
   int st = g_state.load();
   bool click = Clicker_IsRunning();
+  bool active = st == ST_REC || st == ST_PLAY || click;
+  bool elevCursor = active && !SelfElevated() && CursorWindowElevated();
+  bool elevActive = active && !SelfElevated() && ForegroundWindowElevated();
+  if (elevCursor || elevActive) {
+    s = L(elevCursor ? L_ELEVATED_CURSOR : L_ELEVATED_WARN);
+    s += L" \u2022 ";
+    s += EngineStatusText();
+  }
   StatusProgress((g_cfg.statusbarProgress && !g_cfg.continuous)
                      ? Engine_PlayProgress()
                      : -1.0);
   if (g_clickPrev && !click && Clicker_StopReason() > 0)
     StatusShow(L(L_CLICK_STOPPED), 2000);
   g_clickPrev = click;
-  if (st == ST_REC || st == ST_PLAY || click) {
+  if (active) {
     if (StatusIsPersistent())
       StatusUpdate(s.c_str());
     else if (!StatusVisible())

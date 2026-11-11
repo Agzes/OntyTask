@@ -68,6 +68,8 @@
         "status_nothing": "Nothing recorded",
         "status_invalid": "Invalid file",
         "status_conflict": "Hotkey conflict",
+        "elevated_warn": "Active window requires administrator rights: run OntyTask as administrator",
+        "elevated_cursor": "Window under cursor requires administrator rights: run OntyTask as administrator",
         "status_max": "Event limit reached",
         "status_uptodate": "You have the latest version",
         "status_updatefail": "Update check failed",
