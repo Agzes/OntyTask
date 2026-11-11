@@ -5,10 +5,10 @@
     <kbd>📂 100% Open Source</kbd>
     <br><br>
     <img src="assets/readme/OntyTask.png" height="128" alt="OntyTask - logo & screenshots"/>
-    <br><h1 align="center">&nbsp;&nbsp;&nbsp;&nbsp; $\Huge{\textsf{OntyTask}}$ <sup><sup><kbd>v0.1</kbd></sup></sup></h1>
+    <br><h1 align="center">&nbsp;&nbsp;&nbsp;&nbsp; $\Huge{\textsf{OntyTask}}$ <sup><sup><kbd>v0.2</kbd></sup></sup></h1>
     <p><b>Super-light, fast, and simple macro recorder for Windows.</b><br>
     <i>A fresh, modern, and open-source alternative to TinyTask.</i></p>
-    <a href="https://github.com/Agzes/OntyTask/releases/tag/v.0.1.0"><b><kbd> <br> 📥 Download (v0.1.0) <br> </kbd></b></a>
+    <a href="https://github.com/Agzes/OntyTask/releases/tag/v.0.2.0"><b><kbd> <br> 📥 Download (v0.2.0) <br> </kbd></b></a>
     <a href="#quick-start"><b><kbd> <br> ⚡ Quick Start <br> </kbd></b></a>
     <a href="#features"><b><kbd> <br> ✨ Features <br> </kbd></b></a>
     <a href="#ontytask-vs-tinytask"><b><kbd> <br> 📊 Comparison <br> </kbd></b></a>
@@ -40,7 +40,7 @@
 
 ## OntyTask vs TinyTask
 
-| Feature               |    TinyTask (v1.77)     |           OntyTask (v0.1)            | Notes                                                        |
+| Feature               |    TinyTask (v1.77)     |           OntyTask (v0.2)            | Notes                                                        |
 | :-------------------- | :---------------------: | :----------------------------------: | :----------------------------------------------------------- |
 | **License**           | Proprietary (Abandoned) |       **Open Source (GPL-3)**        | 100% transparent and safe                                    |
 | **Input Capture**     |   10ms Timer Polling    |        **Hooks + Raw Input**         | No dropped keys or jitter                                    |
